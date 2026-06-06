@@ -54,7 +54,7 @@ Phase 1 を最小ループ（価値が出る最初の完成形）として完成
 - 親が Slack `#hanamaru` チャネルに投稿（テキスト or LINE/アプリのスクショ画像）
 - AI が予定情報を抽出し、適切な Google Calendar に書き込む
 - 高信頼の抽出は自動登録、低信頼の抽出は Slack スレッドで確認
-- prefix（`#長男` 等）でユーザーが属性・モードを明示できる
+- prefix（`#長女` 等）でユーザーが属性・モードを明示できる
 - 1 投稿から複数イベントを抽出可能
 - 重複処理（Slack の retry）に耐える冪等性
 
@@ -232,9 +232,9 @@ export type ExtractedEvent = z.infer<typeof ExtractedEvent>
 ```ts
 export const CHILDREN = {
   child1: {
-    label: '長男',
+    label: '長女',
     calendarId: process.env.CHILD1_CALENDAR_ID!,
-    aliases: ['長男', '兄', process.env.CHILD1_NAME!],
+    aliases: ['長女', '姉', process.env.CHILD1_NAME!],
     contexts: [process.env.CHILD1_SCHOOL!, process.env.CHILD1_JUKU!],
   },
   child2: { /* 同様 */ },
@@ -392,10 +392,10 @@ const route = isHighConfidence(event) ? 'auto-register' : 'ask'
 ### 投稿構文
 
 ```text
-[#長男 | #次男 | #末っ子 | #自分 | #? | #!!] {本文 / 画像添付}
+[#長女 | #長男 | #末っ子 | #自分 | #? | #!!] {本文 / 画像添付}
 ```
 
-- 属性 prefix: `#長男` `#次男` `#末っ子` `#自分`
+- 属性 prefix: `#長女` `#長男` `#末っ子` `#自分`
 - モード prefix: `#?`（確認強制）/ `#!!`（自動登録強制）
 - 併用可能。行頭のみ解釈、本文中の `#hashtag` は無視
 
@@ -419,11 +419,11 @@ const route = isHighConfidence(event) ? 'auto-register' : 'ask'
 
 ```
 🤖 Hanamaru:
-✅ 3 件登録しました（末っ子 2 件 / 長男 1 件）
+✅ 3 件登録しました（末っ子 2 件 / 長女 1 件）
 
 1️⃣ 📅 遠足（末っ子）6/10(水) 9:00–14:00 ↗
 2️⃣ 📅 検診（末っ子）6/15(月) 10:00–11:00 ↗
-3️⃣ 📅 保護者会（長男）6/20(土) 14:00–16:00 ↗
+3️⃣ 📅 保護者会（長女）6/20(土) 14:00–16:00 ↗
 
 ※ 個別修正は番号返信、まとめて取り消しは ❌
 ```
@@ -441,7 +441,7 @@ const route = isHighConfidence(event) ? 'auto-register' : 'ask'
 応答:
 - ✅ そのまま登録
 - ❌ 破棄
-- 「#次男 7/15 14:00 から」のように詳細を返信
+- 「#長男 7/15 14:00 から」のように詳細を返信
 ```
 
 **パターン 4: 雑談判定**
@@ -607,7 +607,7 @@ Unit             30〜50 本   pipeline 配下のピュア関数中心
 ☐ 単純テキスト投稿（高信頼）→ Calendar 登録
 ☐ 学校だより画像 → 複数イベント抽出
 ☐ 曖昧投稿 → 確認質問 → ✅ で登録
-☐ #長男 prefix → 長男カレンダー
+☐ #長女 prefix → 長女のカレンダー
 ☐ ❌ → 登録済み削除
 ☐ Slack retry シミュレート → 重複登録なし
 ```
@@ -732,7 +732,7 @@ ngrok http 8080         # webhook URL を取得し Slack App に設定
 
 - [ ] テキスト投稿で高信頼イベントが自動登録される
 - [ ] 画像添付投稿で vision 抽出が動く
-- [ ] prefix `#長男` `#次男` `#末っ子` `#自分` `#?` `#!!` が機能する
+- [ ] prefix `#長女` `#長男` `#末っ子` `#自分` `#?` `#!!` が機能する
 - [ ] 低信頼ケースで確認メッセージが出る、✅/❌ で動く
 - [ ] 同じ Slack イベントの再送で重複登録されない
 - [ ] Cloud Run / Firestore / Secret Manager が Terraform で再現可能
