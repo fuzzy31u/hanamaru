@@ -51,7 +51,7 @@ Phase 1 を最小ループ（価値が出る最初の完成形）として完成
 
 ### ゴール
 
-- 親が Slack `#family-schedule` チャネルに投稿（テキスト or LINE/アプリのスクショ画像）
+- 親が Slack `#hanamaru` チャネルに投稿（テキスト or LINE/アプリのスクショ画像）
 - AI が予定情報を抽出し、適切な Google Calendar に書き込む
 - 高信頼の抽出は自動登録、低信頼の抽出は Slack スレッドで確認
 - prefix（`#長男` 等）でユーザーが属性・モードを明示できる
@@ -81,7 +81,7 @@ Phase 1 を最小ループ（価値が出る最初の完成形）として完成
                           │
                           ▼
 ┌─────────────────────────────────────────────────────────────────────┐
-│  Slack workspace #family-schedule                                    │
+│  Slack workspace #hanamaru                                           │
 │  - text + 画像投稿                                                   │
 │  - スレッドで AI と対話 / リアクションで承認                          │
 └─────────────────────────┬───────────────────────────────────────────┘
@@ -385,7 +385,7 @@ const route = isHighConfidence(event) ? 'auto-register' : 'ask'
 - `reaction_added` — ✅/❌/✏️
 
 **Bot 設定**:
-- `#family-schedule` に invite
+- `#hanamaru` に invite
 - 投稿者が allowlist の Slack ID（自分）のときのみ処理
 - bot 自身の投稿は早期 return
 
@@ -696,7 +696,7 @@ ngrok http 8080         # webhook URL を取得し Slack App に設定
 7. `pnpm run script:seed-config` で attribution_hints 投入
 8. Cloud Run デプロイ → webhook URL 取得
 9. Slack Event Subscription URL を設定
-10. `#family-schedule` に bot invite
+10. `#hanamaru` に bot invite
 11. `ALLOWED_USER_IDS` 環境変数を設定
 
 ### 環境分離
