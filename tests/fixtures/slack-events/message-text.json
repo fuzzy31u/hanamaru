@@ -1,0 +1,15 @@
+{
+  "type": "event_callback",
+  "team_id": "T123",
+  "event_id": "Ev0001",
+  "event_time": 1717920000,
+  "event": {
+    "type": "message",
+    "user": "U_ALLOWED",
+    "channel": "C123",
+    "ts": "1717920000.000100",
+    "thread_ts": "1717920000.000100",
+    "text": "明日 10:00 から末っ子の検診",
+    "files": []
+  }
+}
