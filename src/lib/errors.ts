@@ -1,6 +1,6 @@
 export class AppError extends Error {
-  constructor(message: string, public readonly cause?: unknown) {
-    super(message)
+  constructor(message: string, cause?: unknown) {
+    super(message, cause !== undefined ? { cause } : undefined)
     this.name = this.constructor.name
   }
 }
