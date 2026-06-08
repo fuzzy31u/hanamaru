@@ -1,16 +1,13 @@
 import { serve } from '@hono/node-server'
 import { Hono } from 'hono'
-import { createCalendarClient } from '~/adapters/google-calendar'
 import { createGeminiClient } from '~/adapters/gemini'
+import { createCalendarClient } from '~/adapters/google-calendar'
 import { readSecret } from '~/adapters/secrets'
 import { createSlackClient } from '~/adapters/slack'
 import { buildChildren } from '~/config/children'
 import { loadThresholdsFromEnv } from '~/config/thresholds'
-import {
-  type ReactionAddedEvent,
-  handleReaction,
-} from '~/handlers/slack-reactions'
 import { type SlackEventCallback, handleSlackEvent } from '~/handlers/slack-events'
+import { type ReactionAddedEvent, handleReaction } from '~/handlers/slack-reactions'
 import { logger } from '~/lib/logger'
 import { verifySlackSignature } from '~/lib/slack-signature'
 import { createCalendarWriter } from '~/pipeline/calendar-writer'

@@ -44,7 +44,11 @@ export async function handleReaction(
 
   if (REJECT_EMOJIS.has(event.reaction)) {
     await deps.pending.updateStatus(pending.id, 'rejected')
-    await deps.slack.postThreadMessage(pending.slackChannelId, pending.slackThreadTs, '❌ 破棄しました')
+    await deps.slack.postThreadMessage(
+      pending.slackChannelId,
+      pending.slackThreadTs,
+      '❌ 破棄しました',
+    )
     logger.info('reactions.rejected', { pendingId: pending.id })
     return
   }

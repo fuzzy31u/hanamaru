@@ -63,8 +63,7 @@ function buildDeps(extractedEvents: ExtractedEvent[]) {
       const out = events.map((e, i) => ({
         eventId: `hnm-${slackEventId}-${i}`,
         htmlLink: `https://cal/${i}`,
-        calendarId:
-          children[e.attributedTo as 'child1' | 'child2' | 'child3' | 'self'].calendarId,
+        calendarId: children[e.attributedTo as 'child1' | 'child2' | 'child3' | 'self'].calendarId,
         child: e.attributedTo,
       }))
       insertedResults.push(...out)

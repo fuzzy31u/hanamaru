@@ -75,9 +75,7 @@ export async function handleSlackEvent(
 
   void deps
     .process(input, slackEventId)
-    .catch((err) =>
-      logger.error('slackEvents.processFailed', { slackEventId, err: String(err) }),
-    )
+    .catch((err) => logger.error('slackEvents.processFailed', { slackEventId, err: String(err) }))
 
   return c.body(null, 200)
 }

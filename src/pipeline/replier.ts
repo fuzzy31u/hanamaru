@@ -1,5 +1,5 @@
-import type { WriteResult } from '~/pipeline/calendar-writer'
 import type { ChildId, ExtractedEvent } from '~/config/schema'
+import type { WriteResult } from '~/pipeline/calendar-writer'
 
 export type LabelMap = Record<Exclude<ChildId, 'unknown'>, string>
 
@@ -76,13 +76,14 @@ export function buildAutoRegisterText(
     lines.push('', '※ 修正は ✏️、取り消しは ❌')
   } else {
     lines.push(`✅ ${events.length} 件登録しました（${breakdown(results, labels)}）`, '')
-    events.forEach((e, i) => {
+    for (let i = 0; i < events.length; i++) {
+      const e = events[i]!
       const emoji = NUMBER_EMOJI[i] ?? `${i + 1}.`
       const link = results[i]?.htmlLink ? ` <${results[i]!.htmlLink}|↗>` : ''
       lines.push(
         `${emoji} 📅 ${e.title}（${labelFor(e.attributedTo, labels)}）${formatJstRange(e.startAt, e.endAt, e.allDay)}${link}`,
       )
-    })
+    }
     lines.push('', '※ 個別修正は番号返信、まとめて取り消しは ❌')
   }
   return lines.join('\n')
@@ -90,13 +91,18 @@ export function buildAutoRegisterText(
 
 export function buildAskText(events: ExtractedEvent[], labels: LabelMap): string {
   const lines = ['🤔 以下で登録してよいですか？', '']
-  events.forEach((e) => {
+  for (const e of events) {
     lines.push(`📅 **${e.title}**（${labelFor(e.attributedTo, labels)}）`)
     if (e.datetimeConfidence < 0.7) lines.push(`⚠️ 日時が曖昧です: 「${e.rawExcerpt}」`)
     if (e.attributedTo === 'unknown') lines.push('⚠️ 誰の予定か判別できませんでした')
     lines.push('')
-  })
-  lines.push('応答:', '- ✅ そのまま登録', '- ❌ 破棄', '- 「#長男 7/15 14:00 から」のように詳細を返信')
+  }
+  lines.push(
+    '応答:',
+    '- ✅ そのまま登録',
+    '- ❌ 破棄',
+    '- 「#長男 7/15 14:00 から」のように詳細を返信',
+  )
   return lines.join('\n')
 }
 

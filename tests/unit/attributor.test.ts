@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { attributeEvents } from '~/pipeline/attributor'
 import type { ExtractedEvent } from '~/config/schema'
+import { attributeEvents } from '~/pipeline/attributor'
 
 const baseEvent: ExtractedEvent = {
   title: 'テスト',
@@ -41,7 +41,14 @@ describe('attributeEvents', () => {
   })
 
   it('uses hints lookup when AI confidence is low', () => {
-    const events = [{ ...baseEvent, attributedTo: 'child1' as const, attributionConfidence: 0.3, rawExcerpt: '保育園' }]
+    const events = [
+      {
+        ...baseEvent,
+        attributedTo: 'child1' as const,
+        attributionConfidence: 0.3,
+        rawExcerpt: '保育園',
+      },
+    ]
     const result = attributeEvents(events, {
       prefixHint: null,
       hintsLookup: () => 'child3',

@@ -136,7 +136,11 @@ export function createOrchestrator(deps: OrchestratorDeps) {
         const reason = err instanceof Error ? err.message : String(err)
         await deps.idempotency.markFailed(slackEventId, err)
         try {
-          await deps.slack.postThreadMessage(input.channelId, input.threadTs, buildErrorText(reason))
+          await deps.slack.postThreadMessage(
+            input.channelId,
+            input.threadTs,
+            buildErrorText(reason),
+          )
         } catch (slackErr) {
           logger.error('orchestrator.slackFallbackFailed', { slackErr: String(slackErr) })
         }

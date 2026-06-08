@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { decideRoute } from '~/pipeline/confidence'
 import type { ExtractedEvent } from '~/config/schema'
+import { decideRoute } from '~/pipeline/confidence'
 
 const base: ExtractedEvent = {
   title: 'x',
@@ -37,6 +37,11 @@ describe('decideRoute', () => {
   })
 
   it('returns auto-register when modeHint is force-auto, regardless of confidence', () => {
-    expect(decideRoute({ ...base, attributedTo: 'unknown', attributionConfidence: 0.1 }, { modeHint: 'force-auto' })).toBe('auto-register')
+    expect(
+      decideRoute(
+        { ...base, attributedTo: 'unknown', attributionConfidence: 0.1 },
+        { modeHint: 'force-auto' },
+      ),
+    ).toBe('auto-register')
   })
 })

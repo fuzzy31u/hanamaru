@@ -36,19 +36,17 @@ export function buildChildren(env: Env): ChildrenMap {
       label: '長女',
       calendarId: requireEnv(env, 'CHILD1_CALENDAR_ID'),
       aliases: ['長女', '姉', ...(c1Name ? [c1Name] : [])],
-      contexts: [
-        optionalEnv(env, 'CHILD1_SCHOOL'),
-        optionalEnv(env, 'CHILD1_JUKU'),
-      ].filter((s): s is string => Boolean(s)),
+      contexts: [optionalEnv(env, 'CHILD1_SCHOOL'), optionalEnv(env, 'CHILD1_JUKU')].filter(
+        (s): s is string => Boolean(s),
+      ),
     },
     child2: {
       label: '長男',
       calendarId: requireEnv(env, 'CHILD2_CALENDAR_ID'),
       aliases: ['長男', '兄', ...(c2Name ? [c2Name] : [])],
-      contexts: [
-        optionalEnv(env, 'CHILD2_SCHOOL'),
-        optionalEnv(env, 'CHILD2_JUKU'),
-      ].filter((s): s is string => Boolean(s)),
+      contexts: [optionalEnv(env, 'CHILD2_SCHOOL'), optionalEnv(env, 'CHILD2_JUKU')].filter(
+        (s): s is string => Boolean(s),
+      ),
     },
     child3: {
       label: '末っ子',

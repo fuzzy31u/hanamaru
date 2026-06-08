@@ -47,9 +47,11 @@ export const ExtractionInput = z.object({
   text: z.string(),
   prefixHint: ChildId.exclude(['unknown']).nullable(),
   modeHint: PrefixMode.nullable(),
-  images: z.array(z.object({
-    base64: z.string(),
-    mimeType: z.string(),
-  })),
+  images: z.array(
+    z.object({
+      base64: z.string(),
+      mimeType: z.string(),
+    }),
+  ),
 })
 export type ExtractionInput = z.infer<typeof ExtractionInput>

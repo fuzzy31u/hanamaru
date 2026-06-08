@@ -1,9 +1,6 @@
 import { Firestore } from '@google-cloud/firestore'
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import {
-  type IdempotencyResult,
-  createIdempotencyStore,
-} from '~/stores/idempotency'
+import { type IdempotencyResult, createIdempotencyStore } from '~/stores/idempotency'
 
 let firestore: Firestore
 

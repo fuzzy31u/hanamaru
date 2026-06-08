@@ -17,7 +17,8 @@ export function attributeEvents(
       return { ...event, attributedTo: opts.prefixHint, attributionConfidence: 1.0 }
     }
 
-    const needsHint = event.attributedTo === 'unknown' || event.attributionConfidence < ATTRIBUTION_TRUST_FLOOR
+    const needsHint =
+      event.attributedTo === 'unknown' || event.attributionConfidence < ATTRIBUTION_TRUST_FLOOR
     if (needsHint) {
       const hinted = opts.hintsLookup(event.rawExcerpt)
       if (hinted !== null) {

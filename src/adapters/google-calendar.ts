@@ -55,7 +55,10 @@ export function createCalendarClient(config: CalendarClientConfig): CalendarClie
       } catch (err) {
         const status = (err as { code?: number }).code
         if (status === 409) {
-          logger.info('calendar.duplicate', { calendarId: input.calendarId, eventId: input.eventId })
+          logger.info('calendar.duplicate', {
+            calendarId: input.calendarId,
+            eventId: input.eventId,
+          })
           return { id: input.eventId, htmlLink: '' }
         }
         throw new CalendarWriteError(`Calendar insert failed: ${(err as Error).message}`, err)

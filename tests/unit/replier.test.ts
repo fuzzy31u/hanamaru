@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import type { ExtractedEvent } from '~/config/schema'
 import type { WriteResult } from '~/pipeline/calendar-writer'
 import {
   buildAskText,
@@ -6,7 +7,6 @@ import {
   buildEmptyText,
   buildErrorText,
 } from '~/pipeline/replier'
-import type { ExtractedEvent } from '~/config/schema'
 
 const labels = { child1: '長女', child2: '長男', child3: '末っ子', self: '自分' }
 

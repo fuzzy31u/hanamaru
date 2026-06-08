@@ -2,10 +2,10 @@ import type { PrefixMode, PrefixParseResult } from '~/config/schema'
 import type { ChildId } from '~/config/schema'
 
 const CHILD_PREFIX_MAP: Record<string, Exclude<ChildId, 'unknown'>> = {
-  '長女': 'child1',
-  '長男': 'child2',
-  '末っ子': 'child3',
-  '自分': 'self',
+  長女: 'child1',
+  長男: 'child2',
+  末っ子: 'child3',
+  自分: 'self',
 }
 
 const MODE_PREFIX_MAP: Record<string, PrefixMode> = {
