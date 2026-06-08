@@ -19,7 +19,9 @@
     "typecheck": "tsc --noEmit",
     "lint": "biome check .",
     "format": "biome format --write .",
-    "emulator:firestore": "gcloud beta emulators firestore start --host-port=localhost:8085"
+    "emulator:firestore": "gcloud beta emulators firestore start --host-port=localhost:8085",
+    "auth:google": "tsx scripts/auth-google.ts",
+    "seed:config": "tsx scripts/seed-config.ts"
   },
   "dependencies": {
     "@google-cloud/firestore": "^7.10.0",

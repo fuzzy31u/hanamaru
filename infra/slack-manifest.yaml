@@ -1,0 +1,27 @@
+display_information:
+  name: Hanamaru
+  description: 家族のスケジュールを Slack 投稿から AI 抽出して Google Calendar に登録
+features:
+  bot_user:
+    display_name: Hanamaru
+    always_online: true
+oauth_config:
+  scopes:
+    bot:
+      - channels:history
+      - chat:write
+      - files:read
+      - reactions:read
+      - reactions:write
+      - users:read
+settings:
+  event_subscriptions:
+    request_url: https://REPLACE_WITH_CLOUD_RUN_URL/slack/events
+    bot_events:
+      - message.channels
+      - reaction_added
+  interactivity:
+    is_enabled: false
+  org_deploy_enabled: false
+  socket_mode_enabled: false
+  token_rotation_enabled: false
