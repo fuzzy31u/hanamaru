@@ -134,6 +134,11 @@ export function createOrchestrator(deps: OrchestratorDeps) {
         return { kind: 'created', results: writeResults }
       } catch (err) {
         const reason = err instanceof Error ? err.message : String(err)
+        logger.error('orchestrator.failed', {
+          slackEventId,
+          reason,
+          stack: err instanceof Error ? err.stack : undefined,
+        })
         await deps.idempotency.markFailed(slackEventId, err)
         try {
           await deps.slack.postThreadMessage(

@@ -130,6 +130,10 @@ export function createGeminiClient(config: GeminiClientConfig): GeminiClient {
 
           const parsed = ExtractionResponse.safeParse(json)
           if (!parsed.success) {
+            logger.error('gemini.zodParseFailed', {
+              issues: parsed.error.issues,
+              rawText: text.slice(0, 2000),
+            })
             throw new SchemaParseError(`Zod parse failed: ${parsed.error.message}`, parsed.error)
           }
 
