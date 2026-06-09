@@ -1,9 +1,9 @@
 display_information:
-  name: Hanamaru Agent
+  name: Hanamaru
   description: 家族のスケジュールを Slack 投稿から AI 抽出して Google Calendar に登録
 features:
   bot_user:
-    display_name: Hanamaru Agent
+    display_name: Hanamaru
     always_online: true
 oauth_config:
   scopes:
