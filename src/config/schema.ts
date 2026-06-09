@@ -7,8 +7,8 @@ export type ChildId = z.infer<typeof ChildId>
 /** Gemini が返す 1 件の予定 */
 export const ExtractedEvent = z.object({
   title: z.string().min(1),
-  startAt: z.string().datetime(),
-  endAt: z.string().datetime().nullable(),
+  startAt: z.string().datetime({ offset: true }),
+  endAt: z.string().datetime({ offset: true }).nullable(),
   allDay: z.boolean(),
   location: z.string().nullable(),
   description: z.string().nullable(),
