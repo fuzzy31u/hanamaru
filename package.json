@@ -1,0 +1,44 @@
+{
+  "name": "hanamaru",
+  "version": "0.1.0",
+  "description": "AI scheduling agent that watches Slack and writes Google Calendar entries for the family",
+  "type": "module",
+  "private": true,
+  "packageManager": "pnpm@9.0.0",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc --noEmit && tsup src/server.ts --format esm --target node22 --out-dir dist",
+    "start": "node dist/server.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:unit": "vitest run tests/unit",
+    "test:integration": "vitest run tests/integration",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check .",
+    "format": "biome format --write .",
+    "emulator:firestore": "gcloud beta emulators firestore start --host-port=localhost:8085",
+    "auth:google": "tsx scripts/auth-google.ts",
+    "seed:config": "tsx scripts/seed-config.ts"
+  },
+  "dependencies": {
+    "@google-cloud/firestore": "^7.10.0",
+    "@google-cloud/secret-manager": "^5.6.0",
+    "@google/genai": "^0.3.0",
+    "@hono/node-server": "^1.13.0",
+    "@slack/web-api": "^7.7.0",
+    "googleapis": "^144.0.0",
+    "hono": "^4.6.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.0",
+    "@types/node": "^22.7.0",
+    "tsup": "^8.3.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  }
+}
