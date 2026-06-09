@@ -122,6 +122,8 @@ resource "google_cloud_run_v2_service" "hanamaru" {
           cpu    = "1"
           memory = "512Mi"
         }
+        # ack 後の fire-and-forget で Gemini / Calendar / Slack を呼ぶため、CPU を常時割当
+        cpu_idle = false
       }
     }
     scaling {
@@ -139,4 +141,24 @@ resource "google_cloud_run_v2_service_iam_member" "public_invoker" {
   name     = google_cloud_run_v2_service.hanamaru.name
   role     = "roles/run.invoker"
   member   = "allUsers"
+}
+
+# reaction_added → pending_confirmations.findByMessageTs(channel, ts) 用
+resource "google_firestore_index" "pending_by_message_ts" {
+  project    = var.project_id
+  database   = google_firestore_database.default.name
+  collection = "pending_confirmations"
+
+  fields {
+    field_path = "slackChannelId"
+    order      = "ASCENDING"
+  }
+  fields {
+    field_path = "slackMessageTs"
+    order      = "ASCENDING"
+  }
+  fields {
+    field_path = "__name__"
+    order      = "ASCENDING"
+  }
 }

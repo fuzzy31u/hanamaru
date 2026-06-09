@@ -14,16 +14,21 @@ export type IdempotencyRecord = IdempotencyResult & {
 
 export type IdempotencyStore = {
   get(key: string): Promise<IdempotencyRecord | null>
-  tryAcquire(key: string): Promise<boolean>
+  tryAcquire(key: string, options?: { reclaimStalePendingAfterMs?: number }): Promise<boolean>
   complete(key: string, result: IdempotencyResult): Promise<void>
   markFailed(key: string, err: unknown): Promise<void>
 }
 
 const COLLECTION = 'processed_events'
 const TTL_DAYS = 30
+const DEFAULT_STALE_PENDING_MS = 5 * 60 * 1000 // 5 分以上 pending のままなら zombie 扱い
 
 function ttlDate(): Date {
   return new Date(Date.now() + TTL_DAYS * 24 * 60 * 60 * 1000)
+}
+
+function toDate(value: FirebaseFirestore.Timestamp | Date): Date {
+  return value instanceof Date ? value : value.toDate()
 }
 
 export function createIdempotencyStore(firestore: Firestore): IdempotencyStore {
@@ -36,13 +41,21 @@ export function createIdempotencyStore(firestore: Firestore): IdempotencyStore {
       return snap.data() as IdempotencyRecord
     },
 
-    async tryAcquire(key) {
+    async tryAcquire(key, options) {
       const ref = col.doc(key)
+      const staleAfterMs = options?.reclaimStalePendingAfterMs ?? DEFAULT_STALE_PENDING_MS
       try {
         await firestore.runTransaction(async (tx) => {
           const existing = await tx.get(ref)
           if (existing.exists) {
-            throw new Error('already-acquired')
+            const data = existing.data() as IdempotencyRecord
+            const isReclaimable =
+              data.resultSummary === 'pending' &&
+              Date.now() - toDate(data.processedAt).getTime() > staleAfterMs
+            if (!isReclaimable) {
+              throw new Error('already-acquired')
+            }
+            // stale な pending を上書き取得（zombie reclaim）
           }
           tx.set(ref, {
             slackEventId: key,

@@ -17,3 +17,6 @@ infra/terraform/.terraform.tfstate.lock.info
 # Coverage
 coverage/
 .vitest-cache/
+
+# Personal local settings
+.claude/settings.local.json

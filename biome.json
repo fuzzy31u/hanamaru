@@ -7,7 +7,7 @@
   },
   "files": {
     "ignoreUnknown": true,
-    "ignore": ["dist", "node_modules", "*.log"]
+    "ignore": ["dist", "node_modules", "*.log", ".claude/settings.local.json"]
   },
   "formatter": {
     "enabled": true,

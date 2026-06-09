@@ -50,12 +50,17 @@ export function createOrchestrator(deps: OrchestratorDeps) {
     async process(input: ExtractionInput, slackEventId: string): Promise<ProcessResult> {
       const existing = await deps.idempotency.get(slackEventId)
       if (existing && existing.resultSummary !== 'pending') {
-        logger.info('orchestrator.duplicate', { slackEventId })
+        logger.info('orchestrator.duplicate', {
+          slackEventId,
+          resultSummary: existing.resultSummary,
+        })
         return { kind: 'duplicate' }
       }
 
+      // tryAcquire は stale な 'pending' (zombie) を自動 reclaim する
       const acquired = await deps.idempotency.tryAcquire(slackEventId)
       if (!acquired) {
+        logger.info('orchestrator.duplicate.inFlight', { slackEventId })
         return { kind: 'duplicate' }
       }
 

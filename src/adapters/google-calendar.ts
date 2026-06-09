@@ -2,6 +2,48 @@ import { type calendar_v3, google } from 'googleapis'
 import { CalendarWriteError } from '~/lib/errors'
 import { logger } from '~/lib/logger'
 
+const DEFAULT_TIMED_DURATION_MS = 60 * 60 * 1000 // 1 hour
+
+/** ISO 8601 文字列を JST の YYYY-MM-DD に変換（タイムゾーン情報を尊重） */
+function jstDatePart(iso: string): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Tokyo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date(iso))
+  const y = parts.find((p) => p.type === 'year')?.value ?? ''
+  const m = parts.find((p) => p.type === 'month')?.value ?? ''
+  const d = parts.find((p) => p.type === 'day')?.value ?? ''
+  return `${y}-${m}-${d}`
+}
+
+/** YYYY-MM-DD の翌日を返す */
+function addOneDay(dateStr: string): string {
+  const d = new Date(`${dateStr}T00:00:00Z`)
+  d.setUTCDate(d.getUTCDate() + 1)
+  return d.toISOString().slice(0, 10)
+}
+
+/** endAt 未指定時のデフォルト終了時刻（開始 + 1 時間、ISO 8601 with JST offset） */
+function defaultEndForStart(startAt: string): string {
+  const d = new Date(new Date(startAt).getTime() + DEFAULT_TIMED_DURATION_MS)
+  // JST offset で出力
+  const tzFormatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Tokyo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  })
+  const parts = tzFormatter.formatToParts(d)
+  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? ''
+  return `${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}:${get('second')}+09:00`
+}
+
 export type CalendarEventInput = {
   calendarId: string
   eventId: string
@@ -38,11 +80,14 @@ export function createCalendarClient(config: CalendarClientConfig): CalendarClie
         location: input.location ?? undefined,
       }
       if (input.allDay) {
-        body.start = { date: input.startAt.slice(0, 10) }
-        body.end = { date: (input.endAt ?? input.startAt).slice(0, 10) }
+        const startDate = jstDatePart(input.startAt)
+        const endDate = input.endAt ? jstDatePart(input.endAt) : startDate
+        body.start = { date: startDate }
+        body.end = { date: addOneDay(endDate) }
       } else {
+        const endAt = input.endAt ?? defaultEndForStart(input.startAt)
         body.start = { dateTime: input.startAt, timeZone: 'Asia/Tokyo' }
-        body.end = { dateTime: input.endAt ?? input.startAt, timeZone: 'Asia/Tokyo' }
+        body.end = { dateTime: endAt, timeZone: 'Asia/Tokyo' }
       }
 
       try {

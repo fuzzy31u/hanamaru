@@ -110,6 +110,8 @@ export function buildEmptyText(): string {
   return '📭 予定情報を検出できませんでした'
 }
 
-export function buildErrorText(reason: string): string {
-  return `⚠️ 抽出に失敗しました（${reason}）\n少し時間をおいて再投稿してください`
+export function buildErrorText(_reason: string): string {
+  // err.message は内部実装の詳細やトークン断片を含む可能性があるため、ユーザー向けは固定メッセージ。
+  // 詳細はサーバーログ (orchestrator.failed) に出力済み。
+  return '⚠️ 抽出に失敗しました。少し時間をおいて再投稿してください。'
 }
