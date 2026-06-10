@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Hanamaru — Family Calendar Agent</title>
+    <style>
+      :root {
+        --bg: #f5f7fa;
+        --surface: #ffffff;
+        --border: #e2e8f0;
+        --text: #1e293b;
+        --muted: #64748b;
+        --accent: #d97757;
+        --accent-soft: #fdf0eb;
+        --auto: #15803d;
+        --auto-soft: #dcfce7;
+        --ask: #b45309;
+        --ask-soft: #fef3c7;
+        --warn: #b91c1c;
+        --warn-soft: #fee2e2;
+        --code-bg: #0f172a;
+        --code-text: #e2e8f0;
+        --radius: 12px;
+        --shadow: 0 1px 3px rgba(15, 23, 42, 0.08), 0 4px 16px rgba(15, 23, 42, 0.04);
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans",
+          "Noto Sans JP", Meiryo, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        line-height: 1.6;
+        -webkit-font-smoothing: antialiased;
+      }
+      .wrap {
+        max-width: 880px;
+        margin: 0 auto;
+        padding: 32px 20px 80px;
+      }
+      header.hero {
+        margin-bottom: 28px;
+      }
+      .logo-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+      .logo {
+        font-size: 28px;
+        line-height: 1;
+      }
+      h1 {
+        font-size: 1.6rem;
+        margin: 0;
+        letter-spacing: -0.01em;
+      }
+      .tag {
+        display: inline-block;
+        font-size: 0.72rem;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+        color: var(--accent);
+        background: var(--accent-soft);
+        border: 1px solid #f3d6c9;
+        border-radius: 999px;
+        padding: 4px 10px;
+      }
+      .lede {
+        color: var(--muted);
+        margin: 12px 0 0;
+        font-size: 0.98rem;
+      }
+      .card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+        padding: 22px;
+      }
+      label {
+        display: block;
+        font-weight: 600;
+        font-size: 0.9rem;
+        margin-bottom: 8px;
+      }
+      .hint {
+        font-weight: 400;
+        color: var(--muted);
+        font-size: 0.82rem;
+      }
+      textarea {
+        width: 100%;
+        min-height: 150px;
+        resize: vertical;
+        padding: 12px 14px;
+        font: inherit;
+        font-size: 0.92rem;
+        color: var(--text);
+        background: #fbfcfe;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        outline: none;
+        transition: border-color 0.15s, box-shadow 0.15s;
+      }
+      textarea:focus,
+      input[type="file"]:focus {
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px var(--accent-soft);
+      }
+      .field {
+        margin-bottom: 18px;
+      }
+      .file-row {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        flex-wrap: wrap;
+      }
+      input[type="file"] {
+        font: inherit;
+        font-size: 0.85rem;
+        padding: 8px;
+        border: 1px dashed var(--border);
+        border-radius: 10px;
+        background: #fbfcfe;
+        cursor: pointer;
+      }
+      #preview {
+        max-height: 96px;
+        max-width: 160px;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        display: none;
+        object-fit: cover;
+      }
+      .actions {
+        margin-top: 22px;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+      }
+      button.submit {
+        appearance: none;
+        border: none;
+        background: var(--accent);
+        color: #fff;
+        font: inherit;
+        font-weight: 600;
+        font-size: 0.95rem;
+        padding: 11px 22px;
+        border-radius: 10px;
+        cursor: pointer;
+        transition: background 0.15s, transform 0.05s;
+      }
+      button.submit:hover {
+        background: #c4633f;
+      }
+      button.submit:active {
+        transform: translateY(1px);
+      }
+      button.submit:disabled {
+        background: #cbd5e1;
+        cursor: not-allowed;
+      }
+      .spinner {
+        width: 16px;
+        height: 16px;
+        border: 2px solid rgba(255, 255, 255, 0.5);
+        border-top-color: #fff;
+        border-radius: 50%;
+        display: inline-block;
+        vertical-align: -3px;
+        margin-right: 8px;
+        animation: spin 0.7s linear infinite;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      #results {
+        margin-top: 28px;
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+      }
+      .section-title {
+        font-size: 1.05rem;
+        font-weight: 700;
+        margin: 0 0 12px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .events-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 12px;
+      }
+      @media (min-width: 620px) {
+        .events-grid {
+          grid-template-columns: 1fr 1fr;
+        }
+      }
+      .event {
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 14px 16px;
+        background: var(--surface);
+      }
+      .event-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 10px;
+      }
+      .event-title {
+        font-weight: 700;
+        font-size: 1rem;
+      }
+      .badge {
+        font-size: 0.7rem;
+        font-weight: 700;
+        padding: 3px 9px;
+        border-radius: 999px;
+        white-space: nowrap;
+      }
+      .badge.auto {
+        color: var(--auto);
+        background: var(--auto-soft);
+      }
+      .badge.ask {
+        color: var(--ask);
+        background: var(--ask-soft);
+      }
+      .event-meta {
+        color: var(--muted);
+        font-size: 0.85rem;
+        margin-top: 6px;
+      }
+      .event-meta .who {
+        font-weight: 600;
+        color: var(--text);
+      }
+      .conf {
+        margin-top: 10px;
+        font-size: 0.72rem;
+        color: var(--muted);
+      }
+      .conf-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 4px;
+      }
+      .conf-row span:first-child {
+        width: 64px;
+        flex: none;
+      }
+      .bar {
+        flex: 1;
+        height: 6px;
+        background: var(--border);
+        border-radius: 999px;
+        overflow: hidden;
+      }
+      .bar > i {
+        display: block;
+        height: 100%;
+        background: var(--accent);
+        border-radius: 999px;
+      }
+      .conflicts .card {
+        border-color: #f5c2c2;
+        background: var(--warn-soft);
+      }
+      .conflict-item {
+        font-size: 0.9rem;
+        padding: 8px 0;
+        border-bottom: 1px solid #f1cccc;
+      }
+      .conflict-item:last-child {
+        border-bottom: none;
+      }
+      .conflict-item strong {
+        color: var(--warn);
+      }
+      details.trace {
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: var(--surface);
+        overflow: hidden;
+      }
+      details.trace > summary {
+        cursor: pointer;
+        padding: 14px 16px;
+        font-weight: 600;
+        font-size: 0.95rem;
+        list-style: none;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        user-select: none;
+      }
+      details.trace > summary::-webkit-details-marker {
+        display: none;
+      }
+      details.trace > summary::before {
+        content: "▶";
+        font-size: 0.7rem;
+        color: var(--muted);
+        transition: transform 0.15s;
+      }
+      details.trace[open] > summary::before {
+        transform: rotate(90deg);
+      }
+      .trace-body {
+        padding: 0 16px 16px;
+      }
+      .mcp-pill {
+        font-size: 0.7rem;
+        font-weight: 700;
+        padding: 2px 8px;
+        border-radius: 999px;
+        margin-left: auto;
+      }
+      .mcp-pill.on {
+        color: #166534;
+        background: var(--auto-soft);
+      }
+      .mcp-pill.off {
+        color: var(--muted);
+        background: #f1f5f9;
+      }
+      .tool-call {
+        margin-bottom: 12px;
+      }
+      .tool-call .tc-name {
+        font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+        font-size: 0.82rem;
+        font-weight: 700;
+        color: var(--accent);
+      }
+      pre {
+        margin: 6px 0 0;
+        background: var(--code-bg);
+        color: var(--code-text);
+        padding: 10px 12px;
+        border-radius: 8px;
+        font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+        font-size: 0.76rem;
+        overflow-x: auto;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+      .summary {
+        font-size: 0.9rem;
+        color: var(--text);
+        background: #f8fafc;
+        border-left: 3px solid var(--accent);
+        padding: 10px 14px;
+        border-radius: 0 8px 8px 0;
+        margin-top: 12px;
+      }
+      .note {
+        color: var(--muted);
+        font-size: 0.85rem;
+        padding: 8px 0;
+      }
+      .error-box {
+        border: 1px solid #f5c2c2;
+        background: var(--warn-soft);
+        color: var(--warn);
+        border-radius: 10px;
+        padding: 14px 16px;
+        font-size: 0.9rem;
+      }
+      .empty {
+        color: var(--muted);
+        font-size: 0.9rem;
+        padding: 16px 0;
+        text-align: center;
+      }
+      footer {
+        margin-top: 40px;
+        text-align: center;
+        color: var(--muted);
+        font-size: 0.78rem;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header class="hero">
+        <div class="logo-row">
+          <span class="logo" aria-hidden="true">🌸</span>
+          <h1>Hanamaru — Family Calendar Agent</h1>
+          <span class="tag">MongoDB track · Google Cloud Rapid Agent</span>
+        </div>
+        <p class="lede">
+          学校のおたよりや連絡メッセージ・画像から、Gemini が家族の予定を抽出。
+          MongoDB MCP のエージェントが既存予定と照合してダブルブッキングを検出します（デモはドライラン）。
+        </p>
+      </header>
+
+      <form id="form" class="card">
+        <div class="field">
+          <label for="text">
+            メッセージ本文
+            <span class="hint">prefix で担当を指定可: <code>#長女</code> <code>#長男</code> <code>#?</code>（必ず確認） <code>#!!</code>（自動登録）</span>
+          </label>
+          <textarea
+            id="text"
+            name="text"
+            placeholder="例）#長女&#10;〇〇小学校より：6月20日(金) 14:00〜 授業参観を行います。場所は3年2組教室。上履きをご持参ください。"
+          ></textarea>
+        </div>
+
+        <div class="field">
+          <label for="images">画像（おたよりの写真など・任意）</label>
+          <div class="file-row">
+            <input id="images" name="images" type="file" accept="image/*" />
+            <img id="preview" alt="プレビュー" />
+          </div>
+        </div>
+
+        <div class="actions">
+          <button type="submit" id="submit" class="submit">予定を抽出する</button>
+          <span id="status" class="note" role="status" aria-live="polite"></span>
+        </div>
+      </form>
+
+      <div id="results" aria-live="polite"></div>
+
+      <footer>Hanamaru · ドライランデモ（Google カレンダーへの書き込みは行いません）</footer>
+    </div>
+
+    <script>
+      const form = document.getElementById("form");
+      const fileInput = document.getElementById("images");
+      const preview = document.getElementById("preview");
+      const submitBtn = document.getElementById("submit");
+      const statusEl = document.getElementById("status");
+      const results = document.getElementById("results");
+
+      const MEMBER_LABELS = {
+        child1: "長女",
+        child2: "長男",
+        child3: "末っ子",
+        self: "自分",
+        unknown: "不明",
+      };
+
+      fileInput.addEventListener("change", () => {
+        const file = fileInput.files && fileInput.files[0];
+        if (file) {
+          preview.src = URL.createObjectURL(file);
+          preview.style.display = "block";
+        } else {
+          preview.style.display = "none";
+        }
+      });
+
+      function esc(s) {
+        return String(s == null ? "" : s)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;");
+      }
+
+      function fmtJst(iso, allDay) {
+        if (!iso) return "(日時なし)";
+        const d = new Date(iso);
+        if (Number.isNaN(d.getTime())) return esc(iso);
+        const opts = allDay
+          ? { year: "numeric", month: "long", day: "numeric", weekday: "short", timeZone: "Asia/Tokyo" }
+          : {
+              year: "numeric",
+              month: "long",
+              day: "numeric",
+              weekday: "short",
+              hour: "2-digit",
+              minute: "2-digit",
+              timeZone: "Asia/Tokyo",
+            };
+        return new Intl.DateTimeFormat("ja-JP", opts).format(d);
+      }
+
+      function confBar(label, value) {
+        const pct = Math.round((value || 0) * 100);
+        return (
+          '<div class="conf-row"><span>' +
+          label +
+          '</span><span class="bar"><i style="width:' +
+          pct +
+          '%"></i></span><span>' +
+          pct +
+          "%</span></div>"
+        );
+      }
+
+      function eventCard(ev) {
+        const isAuto = ev.route === "auto-register";
+        const badge =
+          '<span class="badge ' +
+          (isAuto ? "auto" : "ask") +
+          '">' +
+          (isAuto ? "自動登録" : "要確認") +
+          "</span>";
+        const who = MEMBER_LABELS[ev.attributedTo] || ev.attributedTo;
+        const when = fmtJst(ev.startAt, ev.allDay) + (ev.allDay ? "（終日）" : "");
+        const loc = ev.location ? " · " + esc(ev.location) : "";
+        return (
+          '<div class="event"><div class="event-head"><span class="event-title">' +
+          esc(ev.title) +
+          "</span>" +
+          badge +
+          '</div><div class="event-meta"><span class="who">' +
+          esc(who) +
+          "</span> · " +
+          esc(when) +
+          loc +
+          '</div><div class="conf">' +
+          confBar("担当", ev.attributionConfidence) +
+          confBar("日時", ev.datetimeConfidence) +
+          "</div></div>"
+        );
+      }
+
+      function conflictsSection(conflicts) {
+        if (!conflicts || conflicts.length === 0) return "";
+        const items = conflicts
+          .map(function (c) {
+            const members = (c.members || []).join(", ");
+            return (
+              '<div class="conflict-item"><strong>' +
+              esc(c.newEventTitle) +
+              "</strong> が <strong>" +
+              esc(c.conflictsWith) +
+              "</strong> と重複（" +
+              esc(fmtJst(c.when)) +
+              (members ? " · " + esc(members) : "") +
+              ")</div>"
+            );
+          })
+          .join("");
+        return (
+          '<section class="conflicts"><h2 class="section-title">⚠️ 予定の重複</h2><div class="card">' +
+          items +
+          "</div></section>"
+        );
+      }
+
+      function traceSection(data) {
+        const calls = data.toolCalls || [];
+        const pill = data.mcpEnabled
+          ? '<span class="mcp-pill on">MCP 有効</span>'
+          : '<span class="mcp-pill off">MCP 無効</span>';
+        let body = "";
+        if (!data.mcpEnabled) {
+          body =
+            '<p class="note">MongoDB MCP は無効です（ENABLE_MONGO_MCP が未設定）。有効化すると、抽出した予定の永続化と重複検出のツール呼び出しがここに表示されます。</p>';
+        } else if (calls.length === 0) {
+          body = '<p class="note">ツール呼び出しはありませんでした。</p>';
+        } else {
+          body = calls
+            .map(function (tc) {
+              return (
+                '<div class="tool-call"><div class="tc-name">' +
+                esc(tc.name) +
+                "()</div><pre>args " +
+                esc(JSON.stringify(tc.args, null, 2)) +
+                "</pre><pre>result " +
+                esc(JSON.stringify(tc.result, null, 2)) +
+                "</pre></div>"
+              );
+            })
+            .join("");
+        }
+        const summary = data.summary
+          ? '<div class="summary">' + esc(data.summary) + "</div>"
+          : "";
+        return (
+          '<details class="trace"' +
+          (data.mcpEnabled && calls.length ? " open" : "") +
+          '><summary>🍃 MongoDB MCP ツール呼び出しトレース' +
+          pill +
+          '</summary><div class="trace-body">' +
+          body +
+          summary +
+          "</div></details>"
+        );
+      }
+
+      function render(data) {
+        if (data.error) {
+          results.innerHTML = '<div class="error-box">エラー: ' + esc(data.error) + "</div>";
+          return;
+        }
+        const events = data.events || [];
+        let html = "";
+        if (events.length === 0) {
+          html += '<div class="empty">予定は抽出されませんでした。</div>';
+        } else {
+          html +=
+            '<section><h2 class="section-title">📅 抽出された予定（' +
+            events.length +
+            '件）</h2><div class="events-grid">' +
+            events.map(eventCard).join("") +
+            "</div></section>";
+        }
+        html += conflictsSection(data.conflicts);
+        html += traceSection(data);
+        results.innerHTML = html;
+      }
+
+      form.addEventListener("submit", async function (e) {
+        e.preventDefault();
+        const text = document.getElementById("text").value;
+        const file = fileInput.files && fileInput.files[0];
+        if (text.trim() === "" && !file) {
+          results.innerHTML =
+            '<div class="error-box">テキストまたは画像のいずれかを入力してください。</div>';
+          return;
+        }
+
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="spinner"></span>抽出中…';
+        statusEl.textContent = "Gemini が解析しています…";
+        results.innerHTML = "";
+
+        try {
+          const fd = new FormData();
+          fd.append("text", text);
+          if (file) fd.append("images", file);
+
+          const res = await fetch("/api/extract", { method: "POST", body: fd });
+          const data = await res.json();
+          render(data);
+        } catch (err) {
+          results.innerHTML =
+            '<div class="error-box">通信エラー: ' + esc(String(err)) + "</div>";
+        } finally {
+          submitBtn.disabled = false;
+          submitBtn.textContent = "予定を抽出する";
+          statusEl.textContent = "";
+        }
+      });
+    </script>
+  </body>
+</html>

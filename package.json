@@ -10,7 +10,7 @@
   },
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "build": "tsc --noEmit && tsup src/server.ts --format esm --target node22 --out-dir dist",
+    "build": "tsc --noEmit && tsup src/server.ts --format esm --target node22 --out-dir dist && cp src/web/index.html dist/index.html",
     "start": "node dist/server.js",
     "test": "vitest run",
     "test:watch": "vitest",

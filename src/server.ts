@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs'
+import { dirname, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { serve } from '@hono/node-server'
 import { Hono } from 'hono'
 import { createGeminiClient } from '~/adapters/gemini'
@@ -9,6 +12,7 @@ import { buildChildren } from '~/config/children'
 import { loadThresholdsFromEnv } from '~/config/thresholds'
 import { type SlackEventCallback, handleSlackEvent } from '~/handlers/slack-events'
 import { type ReactionAddedEvent, handleReaction } from '~/handlers/slack-reactions'
+import { createWebExtractHandler } from '~/handlers/web-extract'
 import { logger } from '~/lib/logger'
 import { verifySlackSignature } from '~/lib/slack-signature'
 import { type ScheduleAgent, createScheduleAgent } from '~/pipeline/agent'
@@ -19,6 +23,33 @@ import { createAttributionHintsStore } from '~/stores/attribution-hints'
 import { getFirestore } from '~/stores/firestore-client'
 import { createIdempotencyStore } from '~/stores/idempotency'
 import { createPendingStore } from '~/stores/pending'
+
+/**
+ * Loads the web demo HTML once at startup.
+ *
+ * Path strategy: the build copies src/web/index.html to dist/index.html (see the
+ * `build` script and Dockerfile). We resolve relative to this module's directory
+ * and try both layouts so the same code works in `pnpm dev` (tsx runs from
+ * src/server.ts → ../web/index.html) and in the bundled container (dist/server.js
+ * → ./index.html). The first readable candidate wins.
+ */
+function loadWebHtml(): string {
+  const here = dirname(fileURLToPath(import.meta.url))
+  const candidates = [
+    resolve(here, 'index.html'), // bundled: dist/index.html (next to dist/server.js)
+    resolve(here, 'web/index.html'), // bundled alt: dist/web/index.html
+    resolve(here, '../web/index.html'), // dev: src/server.ts → src/web/index.html
+  ]
+  for (const path of candidates) {
+    try {
+      return readFileSync(path, 'utf8')
+    } catch {
+      // try next candidate
+    }
+  }
+  logger.warn('server.webHtmlMissing', { candidates })
+  return '<!doctype html><meta charset="utf-8"><title>Hanamaru</title><p>Web demo asset not found.</p>'
+}
 
 async function bootstrap() {
   const projectId = process.env.GCP_PROJECT_ID
@@ -124,6 +155,14 @@ async function bootstrap() {
   const app = new Hono()
 
   app.get('/healthz', (c) => c.text('ok'))
+
+  // Web demo: serve the single-page UI and its headless extract API.
+  const webHtml = loadWebHtml()
+  app.get('/', (c) => c.html(webHtml))
+  app.post(
+    '/api/extract',
+    createWebExtractHandler({ extractor, children, thresholds, agent, hints }),
+  )
 
   app.post('/slack/events', async (c) => {
     const rawBody = await c.req.text()
