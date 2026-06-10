@@ -448,6 +448,32 @@
         color: var(--muted);
         font-size: 0.78rem;
       }
+      .lang-switch {
+        margin-left: auto;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 0.78rem;
+      }
+      .lang-switch a {
+        color: var(--muted);
+        text-decoration: none;
+        padding: 3px 8px;
+        border-radius: 999px;
+        border: 1px solid transparent;
+      }
+      .lang-switch a:hover {
+        color: var(--accent);
+      }
+      .lang-switch a.active {
+        color: var(--accent);
+        background: var(--accent-soft);
+        border-color: #f3d6c9;
+        font-weight: 700;
+      }
+      .lang-switch .sep {
+        color: var(--border);
+      }
     </style>
   </head>
   <body>
@@ -460,36 +486,37 @@
           <span class="logo" aria-hidden="true">🌸</span>
           <h1>Hanamaru — Family Calendar Agent</h1>
           <span class="tag">MongoDB track · Google Cloud Rapid Agent</span>
+          <span class="lang-switch" id="langSwitch">
+            <a href="?lang=en" id="langEn">EN</a>
+            <span class="sep">/</span>
+            <a href="?lang=ja" id="langJa">日本語</a>
+          </span>
         </div>
-        <p class="lede" id="lede">
-          学校のおたよりや連絡メッセージ・画像から、Gemini が家族の予定を抽出。
-          MongoDB MCP のエージェントが既存予定と照合してダブルブッキングを検出します（デモはドライラン）。
-        </p>
+        <p class="lede" id="lede"></p>
       </header>
 
       <form id="form" class="card">
         <div class="field">
           <label for="text">
-            メッセージ本文
-            <span class="hint">prefix で担当を指定可: <code>#長女</code> <code>#長男</code> <code>#?</code>（必ず確認） <code>#!!</code>（自動登録）</span>
+            <span id="labelText"></span>
+            <span class="hint" id="hintText"></span>
           </label>
           <textarea
             id="text"
             name="text"
-            placeholder="例）#長女&#10;〇〇小学校より：6月20日(金) 14:00〜 授業参観を行います。場所は3年2組教室。上履きをご持参ください。"
           ></textarea>
         </div>
 
         <div class="field">
-          <label for="images">画像（おたよりの写真など・任意）</label>
+          <label for="images" id="labelImages"></label>
           <div class="file-row">
             <input id="images" name="images" type="file" accept="image/*" />
-            <img id="preview" alt="プレビュー" />
+            <img id="preview" alt="preview" />
           </div>
         </div>
 
         <div class="actions">
-          <button type="submit" id="submit" class="submit">予定を抽出する</button>
+          <button type="submit" id="submit" class="submit"></button>
           <span id="status" class="note" role="status" aria-live="polite"></span>
         </div>
       </form>
@@ -497,21 +524,172 @@
       <div id="results" aria-live="polite"></div>
 
       <section id="demoCalendar" style="display: none; margin-top: 28px">
-        <h2 class="section-title">📆 デモ用 Google カレンダー</h2>
+        <h2 class="section-title" id="calSectionTitle"></h2>
         <div class="cal-toolbar">
-          <button type="button" id="calRefresh" class="refresh">カレンダーを更新</button>
-          <span class="hint">自動登録した予定がここに反映されます</span>
+          <button type="button" id="calRefresh" class="refresh"></button>
+          <span class="hint" id="calHint"></span>
         </div>
         <div class="cal-links" id="calLinks"></div>
         <div class="cal-frame-wrap">
-          <iframe id="calFrame" title="デモ用 Google カレンダー" loading="lazy"></iframe>
+          <iframe id="calFrame" title="Demo Google Calendar" loading="lazy"></iframe>
         </div>
       </section>
 
-      <footer id="footer">Hanamaru · ドライランデモ（Google カレンダーへの書き込みは行いません）</footer>
+      <footer id="footer"></footer>
     </div>
 
     <script>
+      // ---- i18n ----------------------------------------------------------
+      const I18N = {
+        ja: {
+          ledeDryRun:
+            "学校のおたよりや連絡メッセージ・画像から、Gemini が家族の予定を抽出。MongoDB MCP のエージェントが既存予定と照合してダブルブッキングを検出します（デモはドライラン）。",
+          ledeCalendar:
+            "学校のおたよりや連絡メッセージ・画像から、Gemini が家族の予定を抽出。MongoDB MCP のエージェントが既存予定と照合してダブルブッキングを検出し、自動登録された予定はデモ用 Google カレンダーに反映されます。",
+          labelText: "メッセージ本文",
+          hintText:
+            'prefix で担当を指定可: <code>#長女</code> <code>#長男</code> <code>#?</code>（必ず確認） <code>#!!</code>（自動登録）',
+          textPlaceholder:
+            "例）#長女\n〇〇小学校より：6月20日(金) 14:00〜 授業参観を行います。場所は3年2組教室。上履きをご持参ください。",
+          labelImages: "画像（おたよりの写真など・任意）",
+          submit: "予定を抽出する",
+          submitting: "抽出中…",
+          statusAnalyzing: "Gemini が解析しています…",
+          calSectionTitle: "📆 デモ用 Google カレンダー",
+          calRefresh: "カレンダーを更新",
+          calHint: "自動登録した予定がここに反映されます",
+          footerDryRun:
+            "Hanamaru · ドライランデモ（Google カレンダーへの書き込みは行いません）",
+          footerCalendar:
+            "Hanamaru · 自動登録された予定はデモ用 Google カレンダーに反映されます",
+          memberChild1: "長女",
+          memberChild2: "長男",
+          memberChild3: "末っ子",
+          memberSelf: "自分",
+          memberUnknown: "不明",
+          eventsHeading: function (n) {
+            return "📅 抽出された予定（" + n + "件）";
+          },
+          badgeAuto: "自動登録",
+          badgeAsk: "要確認",
+          confWho: "担当",
+          confWhen: "日時",
+          allDaySuffix: "（終日）",
+          noDate: "(日時なし)",
+          emptyEvents: "予定は抽出されませんでした。",
+          conflictHeading: "⚠️ 予定の重複",
+          conflictLine: function (a, b, when, members) {
+            return (
+              "<strong>" +
+              a +
+              "</strong> が <strong>" +
+              b +
+              "</strong> と重複（" +
+              when +
+              (members ? " · " + members : "") +
+              ")"
+            );
+          },
+          traceHeading: "🍃 MongoDB MCP ツール呼び出しトレース",
+          mcpOn: "MCP 有効",
+          mcpOff: "MCP 無効",
+          mcpDisabledNote:
+            "MongoDB MCP は無効です（ENABLE_MONGO_MCP が未設定）。有効化すると、抽出した予定の永続化と重複検出のツール呼び出しがここに表示されます。",
+          noToolCalls: "ツール呼び出しはありませんでした。",
+          calRegistered: "✅ Google カレンダーに登録: ",
+          calOpen: "開く",
+          inputRequired: "テキストまたは画像のいずれかを入力してください。",
+          errorPrefix: "エラー: ",
+          networkError: "通信エラー: ",
+        },
+        en: {
+          ledeDryRun:
+            "From a school newsletter or message — text or photo — Gemini extracts the family's events. A MongoDB MCP agent checks existing events and detects double-bookings (this demo is a dry run).",
+          ledeCalendar:
+            "From a school newsletter or message — text or photo — Gemini extracts the family's events. A MongoDB MCP agent checks existing events and detects double-bookings.",
+          labelText: "Message text",
+          hintText:
+            'Use a prefix to set the owner: <code>#長女</code> <code>#長男</code> <code>#?</code> (needs confirmation) <code>#!!</code> (auto-register)',
+          textPlaceholder:
+            "e.g.) #長女\nFrom XX Elementary School: Fri Jun 20, 14:00 — class observation. Location: Room 3-2. Please bring indoor shoes.",
+          labelImages: "Image (newsletter photo, etc. — optional)",
+          submit: "Extract events",
+          submitting: "Extracting…",
+          statusAnalyzing: "Gemini is analyzing…",
+          calSectionTitle: "📆 Demo Google Calendar",
+          calRefresh: "Refresh calendar",
+          calHint: "Auto-registered events appear here.",
+          footerDryRun:
+            "Hanamaru · Dry-run demo (no writes are made to Google Calendar)",
+          footerCalendar:
+            "Hanamaru · Auto-registered events are reflected in the demo Google Calendar.",
+          memberChild1: "長女",
+          memberChild2: "長男",
+          memberChild3: "末っ子",
+          memberSelf: "自分",
+          memberUnknown: "不明",
+          eventsHeading: function (n) {
+            return "📅 Extracted events (" + n + ")";
+          },
+          badgeAuto: "auto-register",
+          badgeAsk: "needs confirmation",
+          confWho: "Attribution",
+          confWhen: "Date & time",
+          allDaySuffix: " (all day)",
+          noDate: "(no date)",
+          emptyEvents: "No events were extracted.",
+          conflictHeading: "⚠️ Schedule conflict",
+          conflictLine: function (a, b, when, members) {
+            return (
+              "<strong>" +
+              a +
+              "</strong> conflicts with <strong>" +
+              b +
+              "</strong> (" +
+              when +
+              (members ? " · " + members : "") +
+              ")"
+            );
+          },
+          traceHeading: "🍃 MongoDB MCP tool-call trace",
+          mcpOn: "MCP enabled",
+          mcpOff: "MCP disabled",
+          mcpDisabledNote:
+            "MongoDB MCP is disabled (ENABLE_MONGO_MCP is not set). When enabled, the tool calls for persisting extracted events and detecting conflicts will appear here.",
+          noToolCalls: "No tool calls were made.",
+          calRegistered: "✅ Registered to Google Calendar: ",
+          calOpen: "Open",
+          inputRequired: "Please enter either text or an image.",
+          errorPrefix: "Error: ",
+          networkError: "Network error: ",
+        },
+      };
+
+      const STORAGE_KEY = "hanamaru.lang";
+      function detectLang() {
+        const q = new URLSearchParams(location.search).get("lang");
+        if (q === "en" || q === "ja") {
+          try {
+            localStorage.setItem(STORAGE_KEY, q);
+          } catch (_) {}
+          return q;
+        }
+        try {
+          const saved = localStorage.getItem(STORAGE_KEY);
+          if (saved === "en" || saved === "ja") return saved;
+        } catch (_) {}
+        return "ja";
+      }
+      const LANG = detectLang();
+      const DICT = I18N[LANG];
+      function t(key) {
+        const v = DICT[key];
+        if (typeof v === "function") {
+          return v.apply(null, Array.prototype.slice.call(arguments, 1));
+        }
+        return v == null ? key : v;
+      }
+
       const form = document.getElementById("form");
       const fileInput = document.getElementById("images");
       const preview = document.getElementById("preview");
@@ -543,24 +721,53 @@
         calFrame.src = calEmbedSrc();
       }
 
+      // ---- apply static chrome translations ------------------------------
+      document.documentElement.lang = LANG;
+      document.getElementById("labelText").textContent = t("labelText");
+      document.getElementById("hintText").innerHTML = t("hintText");
+      document.getElementById("text").placeholder = t("textPlaceholder");
+      document.getElementById("labelImages").textContent = t("labelImages");
+      submitBtn.textContent = t("submit");
+      document.getElementById("calSectionTitle").textContent = t("calSectionTitle");
+      calRefreshBtn.textContent = t("calRefresh");
+      document.getElementById("calHint").textContent = t("calHint");
+      const ledeEl = document.getElementById("lede");
+      ledeEl.textContent = DEMO_CALENDAR_ENABLED ? t("ledeCalendar") : t("ledeDryRun");
+      footerEl.textContent = DEMO_CALENDAR_ENABLED
+        ? t("footerCalendar")
+        : t("footerDryRun");
+
+      // Language toggle: preserve the rest of the query string, switch ?lang=.
+      (function setupLangSwitch() {
+        function langHref(lang) {
+          const p = new URLSearchParams(location.search);
+          p.set("lang", lang);
+          return location.pathname + "?" + p.toString() + location.hash;
+        }
+        const enEl = document.getElementById("langEn");
+        const jaEl = document.getElementById("langJa");
+        if (enEl) {
+          enEl.href = langHref("en");
+          if (LANG === "en") enEl.classList.add("active");
+        }
+        if (jaEl) {
+          jaEl.href = langHref("ja");
+          if (LANG === "ja") jaEl.classList.add("active");
+        }
+      })();
+
       if (DEMO_CALENDAR_ENABLED) {
         demoCalendarSection.style.display = "block";
         calFrame.src = calEmbedSrc();
         calRefreshBtn.addEventListener("click", refreshCalendar);
-        footerEl.textContent =
-          "Hanamaru · 自動登録された予定はデモ用 Google カレンダーに反映されます";
-        const ledeEl = document.getElementById("lede");
-        if (ledeEl)
-          ledeEl.textContent =
-            "学校のおたよりや連絡メッセージ・画像から、Gemini が家族の予定を抽出。MongoDB MCP のエージェントが既存予定と照合してダブルブッキングを検出し、自動登録された予定はデモ用 Google カレンダーに反映されます。";
       }
 
       const MEMBER_LABELS = {
-        child1: "長女",
-        child2: "長男",
-        child3: "末っ子",
-        self: "自分",
-        unknown: "不明",
+        child1: t("memberChild1"),
+        child2: t("memberChild2"),
+        child3: t("memberChild3"),
+        self: t("memberSelf"),
+        unknown: t("memberUnknown"),
       };
 
       fileInput.addEventListener("change", () => {
@@ -581,7 +788,7 @@
       }
 
       function fmtJst(iso, allDay) {
-        if (!iso) return "(日時なし)";
+        if (!iso) return t("noDate");
         const d = new Date(iso);
         if (Number.isNaN(d.getTime())) return String(iso);
         const opts = allDay
@@ -595,7 +802,8 @@
               minute: "2-digit",
               timeZone: "Asia/Tokyo",
             };
-        return new Intl.DateTimeFormat("ja-JP", opts).format(d);
+        const locale = LANG === "en" ? "en-US" : "ja-JP";
+        return new Intl.DateTimeFormat(locale, opts).format(d);
       }
 
       function confBar(label, value) {
@@ -617,10 +825,10 @@
           '<span class="badge ' +
           (isAuto ? "auto" : "ask") +
           '">' +
-          (isAuto ? "自動登録" : "要確認") +
+          (isAuto ? t("badgeAuto") : t("badgeAsk")) +
           "</span>";
         const who = MEMBER_LABELS[ev.attributedTo] || ev.attributedTo;
-        const when = fmtJst(ev.startAt, ev.allDay) + (ev.allDay ? "（終日）" : "");
+        const when = fmtJst(ev.startAt, ev.allDay) + (ev.allDay ? t("allDaySuffix") : "");
         const loc = ev.location ? " · " + esc(ev.location) : "";
         return (
           '<div class="event"><div class="event-head"><span class="event-title">' +
@@ -633,8 +841,8 @@
           esc(when) +
           loc +
           '</div><div class="conf">' +
-          confBar("担当", ev.attributionConfidence) +
-          confBar("日時", ev.datetimeConfidence) +
+          confBar(t("confWho"), ev.attributionConfidence) +
+          confBar(t("confWhen"), ev.datetimeConfidence) +
           "</div></div>"
         );
       }
@@ -645,19 +853,22 @@
           .map(function (c) {
             const members = (c.members || []).join(", ");
             return (
-              '<div class="conflict-item"><strong>' +
-              esc(c.newEventTitle) +
-              "</strong> が <strong>" +
-              esc(c.conflictsWith) +
-              "</strong> と重複（" +
-              esc(fmtJst(c.when)) +
-              (members ? " · " + esc(members) : "") +
-              ")</div>"
+              '<div class="conflict-item">' +
+              t(
+                "conflictLine",
+                esc(c.newEventTitle),
+                esc(c.conflictsWith),
+                esc(fmtJst(c.when)),
+                esc(members)
+              ) +
+              "</div>"
             );
           })
           .join("");
         return (
-          '<section class="conflicts"><h2 class="section-title">⚠️ 予定の重複</h2><div class="card">' +
+          '<section class="conflicts"><h2 class="section-title">' +
+          esc(t("conflictHeading")) +
+          '</h2><div class="card">' +
           items +
           "</div></section>"
         );
@@ -666,14 +877,13 @@
       function traceSection(data) {
         const calls = data.toolCalls || [];
         const pill = data.mcpEnabled
-          ? '<span class="mcp-pill on">MCP 有効</span>'
-          : '<span class="mcp-pill off">MCP 無効</span>';
+          ? '<span class="mcp-pill on">' + esc(t("mcpOn")) + "</span>"
+          : '<span class="mcp-pill off">' + esc(t("mcpOff")) + "</span>";
         let body = "";
         if (!data.mcpEnabled) {
-          body =
-            '<p class="note">MongoDB MCP は無効です（ENABLE_MONGO_MCP が未設定）。有効化すると、抽出した予定の永続化と重複検出のツール呼び出しがここに表示されます。</p>';
+          body = '<p class="note">' + esc(t("mcpDisabledNote")) + "</p>";
         } else if (calls.length === 0) {
-          body = '<p class="note">ツール呼び出しはありませんでした。</p>';
+          body = '<p class="note">' + esc(t("noToolCalls")) + "</p>";
         } else {
           body = calls
             .map(function (tc) {
@@ -695,7 +905,8 @@
         return (
           '<details class="trace"' +
           (data.mcpEnabled && calls.length ? " open" : "") +
-          '><summary>🍃 MongoDB MCP ツール呼び出しトレース' +
+          '><summary>' +
+          esc(t("traceHeading")) +
           pill +
           '</summary><div class="trace-body">' +
           body +
@@ -711,10 +922,15 @@
           calLinksEl.innerHTML = links
             .map(function (l) {
               const open = l.htmlLink
-                ? ' <a href="' + esc(l.htmlLink) + '" target="_blank" rel="noopener">開く</a>'
+                ? ' <a href="' +
+                  esc(l.htmlLink) +
+                  '" target="_blank" rel="noopener">' +
+                  esc(t("calOpen")) +
+                  "</a>"
                 : "";
               return (
-                '<span class="cal-link">✅ Google カレンダーに登録: ' +
+                '<span class="cal-link">' +
+                esc(t("calRegistered")) +
                 esc(l.title) +
                 open +
                 "</span>"
@@ -729,18 +945,19 @@
       function render(data) {
         renderCalendarResult(data);
         if (data.error) {
-          results.innerHTML = '<div class="error-box">エラー: ' + esc(data.error) + "</div>";
+          results.innerHTML =
+            '<div class="error-box">' + esc(t("errorPrefix")) + esc(data.error) + "</div>";
           return;
         }
         const events = data.events || [];
         let html = "";
         if (events.length === 0) {
-          html += '<div class="empty">予定は抽出されませんでした。</div>';
+          html += '<div class="empty">' + esc(t("emptyEvents")) + "</div>";
         } else {
           html +=
-            '<section><h2 class="section-title">📅 抽出された予定（' +
-            events.length +
-            '件）</h2><div class="events-grid">' +
+            '<section><h2 class="section-title">' +
+            esc(t("eventsHeading", events.length)) +
+            '</h2><div class="events-grid">' +
             events.map(eventCard).join("") +
             "</div></section>";
         }
@@ -755,13 +972,13 @@
         const file = fileInput.files && fileInput.files[0];
         if (text.trim() === "" && !file) {
           results.innerHTML =
-            '<div class="error-box">テキストまたは画像のいずれかを入力してください。</div>';
+            '<div class="error-box">' + esc(t("inputRequired")) + "</div>";
           return;
         }
 
         submitBtn.disabled = true;
-        submitBtn.innerHTML = '<span class="spinner"></span>抽出中…';
-        statusEl.textContent = "Gemini が解析しています…";
+        submitBtn.innerHTML = '<span class="spinner"></span>' + esc(t("submitting"));
+        statusEl.textContent = t("statusAnalyzing");
         results.innerHTML = "";
 
         try {
@@ -774,10 +991,10 @@
           render(data);
         } catch (err) {
           results.innerHTML =
-            '<div class="error-box">通信エラー: ' + esc(String(err)) + "</div>";
+            '<div class="error-box">' + esc(t("networkError")) + esc(String(err)) + "</div>";
         } finally {
           submitBtn.disabled = false;
-          submitBtn.textContent = "予定を抽出する";
+          submitBtn.textContent = t("submit");
           statusEl.textContent = "";
         }
       });
