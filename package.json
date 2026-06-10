@@ -28,10 +28,12 @@
     "@google-cloud/secret-manager": "^5.6.0",
     "@google/genai": "^0.3.0",
     "@hono/node-server": "^1.13.0",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "@slack/web-api": "^7.7.0",
     "googleapis": "^144.0.0",
     "hono": "^4.6.0",
     "mongodb": "^7.3.0",
+    "mongodb-mcp-server": "^1.12.0",
     "zod": "^3.23.0"
   },
   "devDependencies": {

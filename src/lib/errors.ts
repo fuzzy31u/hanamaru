@@ -10,6 +10,7 @@ export class GeminiExtractionError extends AppError {}
 export class CalendarWriteError extends AppError {}
 export class SecretAccessError extends AppError {}
 export class SchemaParseError extends AppError {}
+export class McpToolError extends AppError {}
 
 export function isRetryable(err: unknown): boolean {
   if (!(err instanceof Error)) return false
