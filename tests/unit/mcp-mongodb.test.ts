@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Mock the MCP SDK Client and StdioClientTransport so no real subprocess/MongoDB is needed.
@@ -5,6 +6,7 @@ const connectMock = vi.fn()
 const listToolsMock = vi.fn()
 const callToolMock = vi.fn()
 const clientCloseMock = vi.fn()
+const transportCloseMock = vi.fn()
 const ClientCtor = vi.fn()
 const TransportCtor = vi.fn()
 
@@ -22,6 +24,7 @@ vi.mock('@modelcontextprotocol/sdk/client/index.js', () => ({
 
 vi.mock('@modelcontextprotocol/sdk/client/stdio.js', () => ({
   StdioClientTransport: class {
+    close = transportCloseMock
     constructor(...args: unknown[]) {
       TransportCtor(...args)
     }
@@ -38,10 +41,11 @@ beforeEach(() => {
   listToolsMock.mockResolvedValue({ tools: [] })
   callToolMock.mockResolvedValue({ content: [] })
   clientCloseMock.mockResolvedValue(undefined)
+  transportCloseMock.mockResolvedValue(undefined)
 })
 
 describe('createMongoMcpClient', () => {
-  it('spawns the server with the connection string in env and connects', async () => {
+  it('spawns the bundled server with the current Node binary and connection string in env', async () => {
     const client = createMongoMcpClient({ connectionString: CONN })
     await client.connect()
 
@@ -51,8 +55,13 @@ describe('createMongoMcpClient', () => {
       args: string[]
       env: Record<string, string>
     }
-    expect(transportArg.command).toBe('npx')
-    expect(transportArg.args).toEqual(['-y', 'mongodb-mcp-server'])
+    // Default command is the running Node binary, not `npx` — no network/PATH dependency.
+    expect(transportArg.command).toBe(process.execPath)
+    // Default args is a single resolved absolute path to the installed server entry.
+    expect(transportArg.args).toHaveLength(1)
+    const entry = transportArg.args[0] as string
+    expect(entry).toMatch(/[/\\]mongodb-mcp-server[/\\].*index\.js$/)
+    expect(existsSync(entry)).toBe(true)
     expect(transportArg.env.MDB_MCP_CONNECTION_STRING).toBe(CONN)
     expect(connectMock).toHaveBeenCalledTimes(1)
   })
@@ -146,9 +155,24 @@ describe('createMongoMcpClient', () => {
   })
 
   it('propagates transport/connect errors', async () => {
-    connectMock.mockRejectedValue(new Error('spawn npx ENOENT'))
+    connectMock.mockRejectedValue(new Error('spawn ENOENT'))
     const client = createMongoMcpClient({ connectionString: CONN })
     await expect(client.connect()).rejects.toThrow(/ENOENT/)
+  })
+
+  it('closes the spawned transport when connect fails so no child process leaks', async () => {
+    connectMock.mockRejectedValue(new Error('connect refused'))
+    const client = createMongoMcpClient({ connectionString: CONN })
+    await expect(client.connect()).rejects.toThrow(/connect refused/)
+    expect(transportCloseMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('swallows a transport.close() error during connect-failure cleanup and still propagates', async () => {
+    connectMock.mockRejectedValue(new Error('connect refused'))
+    transportCloseMock.mockRejectedValue(new Error('close blew up'))
+    const client = createMongoMcpClient({ connectionString: CONN })
+    await expect(client.connect()).rejects.toThrow(/connect refused/)
+    expect(transportCloseMock).toHaveBeenCalledTimes(1)
   })
 
   it('closes the client and is safe when never connected', async () => {

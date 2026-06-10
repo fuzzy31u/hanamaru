@@ -199,6 +199,25 @@ setup.
 
 ---
 
+## Known Limitations / Next Steps
+
+In the interest of honesty about the current state of the build:
+
+- **Conflict detection relies on the LLM agent** honoring the MongoDB MCP tool
+  instructions (the Gemini loop composes and runs the overlap queries itself). The
+  deterministic direct-driver `events-mongo` store (`src/stores/events-mongo.ts`) is
+  tested groundwork for a more reliable Phase-2 path, but is not yet wired into the
+  runtime.
+- **The `/api/extract` demo endpoint is unauthenticated** and intended for judging /
+  demo use only. It is a dry-run surface (no Calendar or Firestore writes), but it
+  would need auth before any non-demo exposure.
+- **Schema unification is pending** between the documents the MCP agent writes and the
+  shape the direct `events-mongo` store expects
+  (`startMs`/`endMs`/`source`/`slackEventId`/`calendarEventId`/`createdAt`). These must
+  be reconciled before the deterministic store is activated.
+
+---
+
 ## Links
 
 | | |

@@ -1,3 +1,21 @@
+/**
+ * PHASE-2 GROUNDWORK — NOT YET WIRED INTO THE RUNTIME.
+ *
+ * This is a deterministic, direct-driver (`mongodb`) event store. It is fully
+ * unit-tested but is intentionally NOT imported anywhere in `src/`: the live
+ * persistence path runs through the MongoDB MCP agent in `src/pipeline/agent.ts`
+ * (the Gemini tool-calling loop writes events via the `mongodb-mcp-server`),
+ * not through this store.
+ *
+ * It is retained as groundwork for a more reliable Phase-2 path where conflict
+ * detection and inserts run as deterministic code rather than relying on the LLM
+ * agent honoring the MCP tool instructions.
+ *
+ * IMPORTANT before activating: the document schema written here
+ * (`startMs`/`endMs`/`source`/`slackEventId`/`calendarEventId`/`createdAt`) must
+ * be reconciled with what the MCP agent actually writes, so the two paths do not
+ * produce divergent document shapes in the same `events` collection.
+ */
 import { type Collection, type MongoClient, MongoClient as MongoClientCtor } from 'mongodb'
 import type { ChildId, ExtractedEvent } from '~/config/schema'
 

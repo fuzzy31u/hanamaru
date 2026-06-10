@@ -1,19 +1,65 @@
+import { existsSync, readFileSync } from 'node:fs'
+import { createRequire } from 'node:module'
+import { dirname, join } from 'node:path'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { McpToolError } from '~/lib/errors'
 import { logger } from '~/lib/logger'
 
-const DEFAULT_COMMAND = 'npx'
-const DEFAULT_ARGS = ['-y', 'mongodb-mcp-server']
+const PACKAGE_NAME = 'mongodb-mcp-server'
+
+/**
+ * Resolves the absolute path to the bundled `mongodb-mcp-server` executable
+ * entry (its `bin`) from the installed package, with NO network access and NO
+ * dependency on `npx`/PATH. Works under both `tsx` (pnpm dev) and the built
+ * `dist` container.
+ *
+ * Strategy: resolve the package's main entry (its `.` export) via
+ * `require.resolve`, walk up to the package root (the dir whose package.json
+ * has the matching `name`), then join the package's `bin` entry. The `package.json`
+ * subpath itself is not directly resolvable because the package restricts its
+ * `exports`, hence the walk-up.
+ */
+function resolveServerEntry(): string {
+  const require = createRequire(import.meta.url)
+  // Resolves the package's '.' export (e.g. dist/cjs/lib.js) — this lands us
+  // somewhere inside the installed package directory.
+  const mainEntry = require.resolve(PACKAGE_NAME)
+  let dir = dirname(mainEntry)
+  while (dir !== dirname(dir)) {
+    const pkgPath = join(dir, 'package.json')
+    if (existsSync(pkgPath)) {
+      const pkg = JSON.parse(readFileSync(pkgPath, 'utf8')) as {
+        name?: string
+        bin?: string | Record<string, string>
+        main?: string
+      }
+      if (pkg.name === PACKAGE_NAME) {
+        const binRel = typeof pkg.bin === 'string' ? pkg.bin : (pkg.bin?.[PACKAGE_NAME] ?? pkg.main)
+        if (!binRel) {
+          throw new Error('mongodb-mcp-server package.json has no usable bin/main entry')
+        }
+        return join(dir, binRel)
+      }
+    }
+    dir = dirname(dir)
+  }
+  throw new Error(`Could not locate the ${PACKAGE_NAME} package root from ${mainEntry}`)
+}
+
+// Launch the locally installed server with the running Node binary so the
+// MongoDB feature never depends on `npx` or a network download at runtime.
+const DEFAULT_COMMAND = process.execPath
+const DEFAULT_ARGS = [resolveServerEntry()]
 const CLIENT_NAME = 'hanamaru'
 const CLIENT_VERSION = '0.1.0'
 
 export type McpMongoConfig = {
   /** Standard mongodb+srv connection string passed to the server via MDB_MCP_CONNECTION_STRING. */
   connectionString: string
-  /** Command used to spawn the MCP server. Defaults to `npx`. */
+  /** Command used to spawn the MCP server. Defaults to the running Node binary (`process.execPath`). */
   command?: string
-  /** Arguments for the spawn command. Defaults to `['-y', 'mongodb-mcp-server']`. */
+  /** Arguments for the spawn command. Defaults to the resolved absolute path of the bundled `mongodb-mcp-server` entry. */
   args?: string[]
 }
 
@@ -77,7 +123,10 @@ export function createMongoMcpClient(config: McpMongoConfig): MongoMcpClient {
         logger.error('mcpMongo.connectFailed', {
           error: err instanceof Error ? err.message : String(err),
         })
-        // Leave the adapter unconnected so a retry can spawn a fresh transport.
+        // Terminate the already-spawned subprocess so it does not leak as a
+        // zombie/orphan on Cloud Run retries, then leave the adapter
+        // unconnected so a retry can spawn a fresh transport.
+        await t.close().catch(() => {})
         throw err
       }
       client = c
