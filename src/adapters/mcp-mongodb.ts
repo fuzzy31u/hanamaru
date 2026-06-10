@@ -6,7 +6,7 @@ import { logger } from '~/lib/logger'
 const DEFAULT_COMMAND = 'npx'
 const DEFAULT_ARGS = ['-y', 'mongodb-mcp-server']
 const CLIENT_NAME = 'hanamaru'
-const CLIENT_VERSION = '1.0.0'
+const CLIENT_VERSION = '0.1.0'
 
 export type McpMongoConfig = {
   /** Standard mongodb+srv connection string passed to the server via MDB_MCP_CONNECTION_STRING. */

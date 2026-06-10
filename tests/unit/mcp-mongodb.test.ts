@@ -168,4 +168,22 @@ describe('createMongoMcpClient', () => {
     await client.connect()
     expect(connectMock).toHaveBeenCalledTimes(2)
   })
+
+  it('deduplicates concurrent connect() calls: transport and connect invoked exactly once', async () => {
+    const client = createMongoMcpClient({ connectionString: CONN })
+    await Promise.all([client.connect(), client.connect(), client.connect()])
+    expect(TransportCtor).toHaveBeenCalledTimes(1)
+    expect(connectMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('retries successfully after a first connect() failure: fresh transport constructed each attempt', async () => {
+    connectMock
+      .mockRejectedValueOnce(new Error('temporary failure'))
+      .mockResolvedValueOnce(undefined)
+    const client = createMongoMcpClient({ connectionString: CONN })
+    await expect(client.connect()).rejects.toThrow('temporary failure')
+    await client.connect()
+    expect(TransportCtor).toHaveBeenCalledTimes(2)
+    expect(connectMock).toHaveBeenCalledTimes(2)
+  })
 })
