@@ -4,6 +4,9 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+overrides:
+  gcp-metadata: 6.1.1
+
 importers:
 
   .:
@@ -1329,7 +1332,7 @@ packages:
     peerDependencies:
       '@aws-sdk/credential-providers': ^3.806.0
       '@mongodb-js/zstd': ^7.0.0
-      gcp-metadata: ^7.0.1
+      gcp-metadata: 6.1.1
       kerberos: ^7.0.0
       mongodb-client-encryption: '>=7.0.0 <7.1.0'
       snappy: ^7.3.2

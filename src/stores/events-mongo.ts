@@ -6,6 +6,7 @@ import type { ChildId, ExtractedEvent } from '~/config/schema'
  * Firestore のホットパス state とは別に、追加的・feature-flag 前提で利用する。
  */
 export type EventRecord = ExtractedEvent & {
+  /** string | undefined (populated on records read back from the store) */
   _id?: string
   source: 'slack' | 'web'
   slackEventId: string | null
@@ -20,8 +21,18 @@ export type InsertMeta = {
 
 export type EventsStore = {
   insertEvents(events: ExtractedEvent[], meta: InsertMeta): Promise<string[]>
+  /**
+   * Returns events whose START time falls within [startIso, endIso).
+   * Events that start before the window but end inside it are NOT included —
+   * this is intentional, the method is for 'upcoming events starting in this window'
+   * views, not full calendar-overlap rendering.
+   */
   findByDateRange(startIso: string, endIso: string, childId?: ChildId): Promise<EventRecord[]>
   findConflicts(event: ExtractedEvent): Promise<EventRecord[]>
+  /**
+   * Closes the underlying MongoDB connection.
+   * close() must only be called during shutdown when no store methods are in-flight.
+   */
   close(): Promise<void>
 }
 
