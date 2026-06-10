@@ -72,22 +72,23 @@ MongoDB dependency. This lets us ship the feature without risk to the production
 All AI inference runs on **Vertex AI Gemini 2.5 Flash**, chosen for its large context window,
 native multimodal (vision) support, and function-calling capability.
 
-**Two distinct Gemini usage patterns exist in the codebase:**
+**Gemini's role is multimodal extraction** (`src/adapters/gemini.ts` `extract()`): a single
+`generateContent` call with a JSON Schema `responseSchema`. Gemini reads the newsletter image
+and/or text and returns a typed array of calendar events — each with a title, start/end datetime,
+attributed family member, and confidence score — in one shot. This is the AI layer of the pipeline:
+all unstructured-to-structured reasoning lives here.
 
-1. **Structured extraction** (`src/adapters/gemini.ts` `extract()`): a single `generateContent`
-   call with a JSON Schema `responseSchema`. Gemini reads the newsletter image and/or text and
-   returns a typed array of calendar events in one shot.
+The codebase also contains a general-purpose `runWithTools()` function in `src/adapters/gemini.ts`
+that implements a multi-step Gemini function-calling loop (up to 10 steps, with correct
+`functionCall` / `functionResponse` conversation history and per-step retry). However, the schedule
+agent **no longer relies on `runWithTools` for the persist + conflict-detect workflow**. After the
+refactor, persisting events to MongoDB and detecting conflicts is orchestrated deterministically in
+TypeScript (see "How We Used the MongoDB MCP Server" below) — the model does not compose MongoDB
+filter documents or compute epoch-millisecond timestamps.
 
-2. **Tool-calling agent loop** (`src/adapters/gemini.ts` `runWithTools()`): a multi-step loop
-   where Gemini is given the MongoDB MCP tool declarations (`find`, `aggregate`, `count`,
-   `insert-many`) and a system instruction describing the task. In each step, Gemini either calls
-   one or more tools (the code dispatches them through the MCP client, feeds results back as
-   `functionResponse` parts, and continues) or returns a final text answer. The loop runs for up
-   to 10 steps. There is no hand-written orchestration logic — the model drives the entire
-   persist + conflict-detect workflow.
-
-Both patterns share the same retry/back-off policy (`generateWithRetry`, up to 3 attempts with
-exponential back-off) so both are equally resilient to transient Vertex AI errors.
+Both `extract()` and `runWithTools()` share the same retry / back-off policy (`generateWithRetry`,
+up to 3 attempts with exponential back-off) so both are equally resilient to transient Vertex AI
+errors.
 
 Cloud Run provides the serverless container runtime with scale-to-zero. Firestore holds session
 state (idempotency keys and pending confirmation records) so that the agent can handle Slack
@@ -97,17 +98,18 @@ retries and out-of-order reactions correctly.
 
 ## How We Used the MongoDB MCP Server
 
-MongoDB Atlas stores every family event extracted by the agent. The Gemini agent accesses this
-data through the **official `mongodb-mcp-server`** (package `mongodb-mcp-server`, spawned as a
-subprocess over stdio via `@modelcontextprotocol/sdk`).
+MongoDB Atlas stores every family event extracted by the agent. The schedule agent accesses Atlas
+through the **official `mongodb-mcp-server`** (package `mongodb-mcp-server`, spawned as a
+subprocess over stdio via `@modelcontextprotocol/sdk`). The MCP tool calls are made
+**deterministically from TypeScript code** — not by the LLM — making conflict detection reliable
+and reproducible.
 
 **Integration path** (`src/adapters/mcp-mongodb.ts`):
 
 - `createMongoMcpClient` wraps `@modelcontextprotocol/sdk`'s `Client` + `StdioClientTransport`.
 - The MCP server process is spawned with `MDB_MCP_CONNECTION_STRING` set to the Atlas URI (read
   from Secret Manager in production).
-- `listTools()` enumerates the server's tool manifest; the schedule agent filters to the four it
-  needs: `find`, `aggregate`, `count`, `insert-many`.
+- `listTools()` enumerates the server's tool manifest.
 - `callTool(name, args)` sends a single MCP tool call and returns the result (preferring
   `structuredContent` over raw content blocks when the server provides it).
 - The adapter is lazy-connecting: the subprocess is not spawned until the first `listTools` or
@@ -115,18 +117,25 @@ subprocess over stdio via `@modelcontextprotocol/sdk`).
 
 **During a typical agent run** (`src/pipeline/agent.ts`):
 
-1. Gemini calls `insert-many` to persist the newly extracted events into the `events` collection,
-   adding numeric `startMs` / `endMs` fields for efficient range queries.
-2. Gemini calls `find` or `aggregate` with a time-overlap filter to detect existing family events
-   that conflict with the new ones (`existing.startMs < new.endMs AND existing.endMs > new.startMs`).
-3. Gemini calls `count` if it needs to verify totals before deciding whether to continue.
-4. The agent returns a structured JSON answer `{"conflicts":[...],"summary":"..."}` which the
+1. The TypeScript code converts each extracted event's start/end datetimes to numeric epoch
+   milliseconds (`startMs` / `endMs`) before any database interaction.
+2. The code calls the MCP `insert-many` tool directly, passing the fully-formed event documents
+   (including the pre-computed `startMs`/`endMs`) to persist them in the Atlas `events` collection.
+3. The code calls the MCP `find` tool with a code-built time-overlap filter:
+   `{ startMs: { $lt: newEndMs }, endMs: { $gt: newStartMs } }` — the half-open interval condition
+   `startMs < newEnd && endMs > newStart` — to detect existing family events that conflict with the
+   newly inserted ones.
+4. The agent returns a structured result `{ conflicts: [...], summary: "..." }` which the
    orchestrator uses to post conflict notes back to Slack.
 
-Using an MCP server rather than a bespoke SDK integration means the agent can reason about the
-database schema and query structure in natural language through structured tool calls — Gemini
-composes the filter documents itself, guided only by the system instruction and the tool's JSON
-Schema parameters.
+The MCP tool invocations and the overlap-filter math are orchestrated in TypeScript, not by the LLM.
+Gemini's job is extraction; the code's job is persistence and conflict detection. This separation
+makes the conflict check deterministic and avoids the failure modes of asking a language model to
+compute epoch-millisecond arithmetic and compose MongoDB filter documents under prompt pressure.
+
+The integration satisfies the hackathon "integrate a Partner MCP server" requirement: real MCP
+`find` and `insert-many` tool calls go to the official `mongodb-mcp-server` process over stdio via
+`@modelcontextprotocol/sdk` on every `/api/extract` request.
 
 ---
 
@@ -136,20 +145,20 @@ Schema parameters.
 
 The project combines three distinct integration layers:
 
-- **Vertex AI Gemini function-calling** — a full multi-step tool-calling loop implemented from
-  scratch on top of the `@google/genai` SDK, with correct `functionCall` / `functionResponse`
-  conversation history management and per-step retry.
-- **MCP protocol over stdio** — a typed adapter over `@modelcontextprotocol/sdk` that spawns
-  the official `mongodb-mcp-server` as a child process, lists its tools, and dispatches calls
-  without any hard-coded MongoDB query code in the agent layer.
+- **Vertex AI Gemini multimodal extraction** — a single `generateContent` call with a JSON Schema
+  `responseSchema` on the `@google/genai` SDK. Gemini reads the newsletter image and/or text and
+  returns a typed array of calendar events with title, datetimes, family-member attribution, and
+  confidence. A general-purpose `runWithTools` function-calling loop is also implemented (correct
+  `functionCall` / `functionResponse` history, per-step retry, `maxSteps` cap) but is not used for
+  the persist+conflict workflow.
+- **MCP protocol over stdio — deterministic orchestration** — a typed adapter over
+  `@modelcontextprotocol/sdk` spawns the official `mongodb-mcp-server` as a child process. The
+  TypeScript schedule agent calls `insert-many` (with code-computed `startMs`/`endMs`) and `find`
+  (with a code-built half-open overlap filter `startMs < newEnd && endMs > newStart`) directly from
+  code. The LLM does not compose MongoDB filter documents or compute epoch-millisecond values.
 - **Production-quality Node.js service** — TypeScript strict mode, Hono framework, Cloud Run
   deployment, Firestore for hot-path state, Terraform IaC, Secret Manager, 94 unit tests, and
   graceful SIGTERM shutdown that terminates the MCP subprocess cleanly.
-
-The Gemini tool-calling loop (`runWithTools`) feeds `functionResponse` parts back into the
-conversation for each MCP result, handles dispatch errors without aborting the loop (the error
-is fed back to the model so it can recover), and caps iteration at `maxSteps` to prevent runaway
-usage.
 
 ### Design
 
@@ -187,11 +196,13 @@ extend:
 
 ### Quality of Idea
 
-The insight is that a Gemini function-calling agent and a MongoDB MCP server are a natural fit for
-this problem: the newsletter content is unstructured (requires LLM reasoning), but the conflict
-detection and persistence require reliable, queryable storage. Rather than embedding MongoDB query
-logic inside the prompt, exposing Atlas as MCP tools lets the model compose queries itself — a
-genuine use of the agentic paradigm rather than a thin wrapper.
+The insight is that Gemini and a MongoDB MCP server are a natural fit for this problem: the
+newsletter content is unstructured (requires LLM reasoning for extraction), but conflict detection
+and persistence require reliable, deterministic logic. The architecture assigns each layer what it
+does best — Gemini handles the multimodal extraction, while TypeScript code orchestrates the MCP
+`find` and `insert-many` tool calls with pre-computed values and a precise overlap filter. This is
+a genuine use of the MCP integration paradigm rather than a thin wrapper: real tool calls go to the
+official `mongodb-mcp-server` over stdio on every request.
 
 The web demo is designed explicitly so that hackathon judges can test the full pipeline — including
 the live MongoDB MCP tool-call trace — without a Slack workspace, a Google Calendar, or any local
@@ -203,18 +214,22 @@ setup.
 
 In the interest of honesty about the current state of the build:
 
-- **Conflict detection relies on the LLM agent** honoring the MongoDB MCP tool
-  instructions (the Gemini loop composes and runs the overlap queries itself). The
-  deterministic direct-driver `events-mongo` store (`src/stores/events-mongo.ts`) is
-  tested groundwork for a more reliable Phase-2 path, but is not yet wired into the
-  runtime.
-- **The `/api/extract` demo endpoint is unauthenticated** and intended for judging /
-  demo use only. It is a dry-run surface (no Calendar or Firestore writes), but it
-  would need auth before any non-demo exposure.
-- **Schema unification is pending** between the documents the MCP agent writes and the
-  shape the direct `events-mongo` store expects
-  (`startMs`/`endMs`/`source`/`slackEventId`/`calendarEventId`/`createdAt`). These must
-  be reconciled before the deterministic store is activated.
+- **Conflict detection is deterministic in code** — the schedule agent (`src/pipeline/agent.ts`)
+  computes `startMs`/`endMs` in TypeScript and calls the MCP `find` tool with a code-built
+  half-open overlap filter. The Gemini model is not asked to compose MongoDB query documents or
+  compute epoch-millisecond values.
+- **Operating model — two-branch + tagged-revision** — the MongoDB MCP feature is hackathon-scoped
+  and runs behind the `ENABLE_MONGO_MCP` flag on a **separate tagged Cloud Run revision** built
+  from the `feature/hackathon-mongodb-alignment` branch (PR #2). The main/production service used
+  by the family runs the stable build on the `main` branch **without** MongoDB and is completely
+  unaffected by this hackathon work. The tagged revision (`mcpfix---hanamaru-ogvbt3nyqa-an.a.run.app`)
+  is the demo entry point for judges.
+- **The `/api/extract` demo endpoint is unauthenticated** and intended for judging / demo use only.
+  It is a dry-run surface (no Calendar or Firestore writes), but it would need auth before any
+  non-demo exposure.
+- **Schema unification** between the documents the MCP agent writes and the shape the direct
+  `events-mongo` store expects (`startMs`/`endMs`/`source`/`slackEventId`/`calendarEventId`/
+  `createdAt`) has been completed as part of the hackathon refactor.
 
 ---
 
@@ -222,8 +237,8 @@ In the interest of honesty about the current state of the build:
 
 | | |
 |---|---|
-| **Hosted project URL** | <!-- TODO: Cloud Run URL --> |
-| **Public repository** | <!-- TODO: GitHub URL --> (License: MIT) |
+| **Hosted project URL** | https://mcpfix---hanamaru-ogvbt3nyqa-an.a.run.app — tagged Cloud Run revision serving the MongoDB-MCP build; hackathon demo entry point (web UI + live MCP tool-call trace) |
+| **Public repository** | https://github.com/fuzzy31u/hanamaru (License: MIT) — hackathon code on branch `feature/hackathon-mongodb-alignment` (PR #2) |
 | **Demo video (≤ 3 min)** | <!-- TODO: YouTube / Vimeo URL --> |
 
 ---

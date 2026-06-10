@@ -19,18 +19,22 @@ Hanamaru is the hackathon submission for the **MongoDB partner track**.
 Key hackathon additions (all behind the `ENABLE_MONGO_MCP` feature flag):
 
 - **MongoDB Atlas events store** — every extracted family event is persisted in Atlas with rich
-  metadata (`source`, `startMs` for range queries, `calendarEventId`, etc.).
+  metadata (`source`, `startMs`/`endMs` for range queries, `calendarEventId`, etc.).
 - **MongoDB MCP client** (`src/adapters/mcp-mongodb.ts`) — connects to the official
-  `mongodb-mcp-server` over stdio via `@modelcontextprotocol/sdk`, exposing `find`, `aggregate`,
-  `count`, and `insert-many` tools to the agent.
-- **Gemini tool-calling loop** (`src/adapters/gemini.ts` `runWithTools`) — a multi-step
-  function-calling loop where Gemini decides which MongoDB MCP tools to call, interprets their
-  results, and iterates until the task is complete (up to 10 steps).
-- **Schedule agent** (`src/pipeline/agent.ts`) — drives the Gemini + MCP loop to persist new
-  events and detect family schedule conflicts; conflict notes are posted back to the Slack thread.
+  `mongodb-mcp-server` over stdio via `@modelcontextprotocol/sdk`, exposing `find` and
+  `insert-many` tools to the schedule agent.
+- **Schedule agent** (`src/pipeline/agent.ts`) — orchestrates persist + conflict detection
+  deterministically: TypeScript code computes `startMs`/`endMs`, calls MCP `insert-many` to
+  persist events, then calls MCP `find` with a code-built half-open overlap filter
+  (`startMs < newEnd && endMs > newStart`) to detect family schedule conflicts. Conflict notes are
+  posted back to the Slack thread.
+- **Gemini multimodal extraction** (`src/adapters/gemini.ts` `extract()`) — a single
+  `generateContent` call where Gemini reads the newsletter image/text and returns structured
+  calendar events (title, datetimes, family-member attribution, confidence). Gemini's role is
+  extraction only; it does not compose MongoDB queries or compute epoch-millisecond values.
 - **Web demo UI** (`GET /`) — a judge-testable page: paste newsletter text or upload an image,
-  see extracted events, detected conflicts, and the live MongoDB MCP tool-call trace. Dry-run
-  only (no calendar write).
+  see extracted events, detected conflicts, and the live MongoDB MCP `find`/`insert-many`
+  tool-call trace. Dry-run only (no calendar write).
 
 See [`docs/hackathon-submission.md`](docs/hackathon-submission.md) for the full submission writeup.
 
@@ -47,15 +51,21 @@ Slack post (text/image)          Web demo (GET /)
           │                             │
           ▼                             ▼
  [ Vertex AI Gemini 2.5 Flash ]   [ Firestore ]
-   (extraction + tool-calling)    (idempotency,
+   (multimodal extraction only)   (idempotency,
           │                        confirmations,
-          │  function-call loop    hints)
+          │  structured events     hints)
+          ▼
+ [ Schedule Agent (TypeScript) ]
+   code computes startMs/endMs,
+   builds overlap filter in code
+          │
           ▼
  [ MongoDB MCP Server (stdio) ]
+   find + insert-many tool calls
           │
           ▼
   [ MongoDB Atlas ]          ← family event history,
-  events collection             conflict detection
+  events collection             deterministic conflict detection
 
           │ (confirmed events)
           ▼
@@ -68,7 +78,7 @@ starts and the Slack + Calendar pipeline works normally without a MongoDB connec
 ## Stack
 
 - TypeScript + Hono on Cloud Run (asia-northeast1)
-- Vertex AI Gemini 2.5 Flash — extraction (vision + structured output) + tool-calling agent loop
+- Vertex AI Gemini 2.5 Flash — multimodal extraction (vision + structured output); persist + conflict detection is code-orchestrated, not LLM-driven
 - MongoDB Atlas + official `mongodb-mcp-server` — family event history and conflict detection
 - Firestore — idempotency keys, pending confirmations, attribution hints (hot-path state)
 - Slack Events API
