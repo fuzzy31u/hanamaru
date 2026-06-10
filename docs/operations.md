@@ -4,20 +4,20 @@
 
 1. **GCP project**
    ```bash
-   # Project ID は世界中で一意なので、本セットアップでは hanamaru-prod-8779 で確保済み。
+   # Project ID は世界中で一意なので、本セットアップでは <project-id> で確保済み。
    # 別環境を作るときは別 suffix (例: hanamaru-prod-NNNN) を使う。
    gcloud config configurations create hanamaru --no-activate    # 任意。会社プロファイルと分離
    gcloud config configurations activate hanamaru
    gcloud config set account fuzzy31u@gmail.com                  # 個人 Gmail に切替
-   gcloud projects create hanamaru-prod-8779 --set-as-default    # 既に存在する場合はスキップ
-   gcloud billing projects link hanamaru-prod-8779 --billing-account=01EC5C-58EDA3-114FEC
+   gcloud projects create <project-id> --set-as-default    # 既に存在する場合はスキップ
+   gcloud billing projects link <project-id> --billing-account=<your-billing-account-id>
    ```
 
 2. **Terraform apply**
    ```bash
    cd infra/terraform
    terraform init
-   terraform apply -var="project_id=hanamaru-prod-8779" -var="image=asia-northeast1-docker.pkg.dev/hanamaru-prod-8779/hanamaru/hanamaru:initial"
+   terraform apply -var="project_id=<project-id>" -var="image=asia-northeast1-docker.pkg.dev/<project-id>/hanamaru/hanamaru:initial"
    ```
    (`image` を一度仮置きする。後でデプロイ後に置き換える)
 
@@ -48,7 +48,7 @@
 
 7. **Attribution hints の初期投入**
    ```bash
-   GCP_PROJECT_ID=hanamaru-prod-8779 \
+   GCP_PROJECT_ID=<project-id> \
      CHILD1_CALENDAR_ID=... CHILD1_SCHOOL=... CHILD1_JUKU=... \
      CHILD2_CALENDAR_ID=... CHILD2_SCHOOL=... CHILD2_JUKU=... \
      CHILD3_CALENDAR_ID=... CHILD3_DAYCARE=... \
