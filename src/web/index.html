@@ -461,7 +461,7 @@
           <h1>Hanamaru — Family Calendar Agent</h1>
           <span class="tag">MongoDB track · Google Cloud Rapid Agent</span>
         </div>
-        <p class="lede">
+        <p class="lede" id="lede">
           学校のおたよりや連絡メッセージ・画像から、Gemini が家族の予定を抽出。
           MongoDB MCP のエージェントが既存予定と照合してダブルブッキングを検出します（デモはドライラン）。
         </p>
@@ -549,6 +549,10 @@
         calRefreshBtn.addEventListener("click", refreshCalendar);
         footerEl.textContent =
           "Hanamaru · 自動登録された予定はデモ用 Google カレンダーに反映されます";
+        const ledeEl = document.getElementById("lede");
+        if (ledeEl)
+          ledeEl.textContent =
+            "学校のおたよりや連絡メッセージ・画像から、Gemini が家族の予定を抽出。MongoDB MCP のエージェントが既存予定と照合してダブルブッキングを検出し、自動登録された予定はデモ用 Google カレンダーに反映されます。";
       }
 
       const MEMBER_LABELS = {
