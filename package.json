@@ -31,11 +31,13 @@
     "@slack/web-api": "^7.7.0",
     "googleapis": "^144.0.0",
     "hono": "^4.6.0",
+    "mongodb": "^7.3.0",
     "zod": "^3.23.0"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.0",
     "@types/node": "^22.7.0",
+    "mongodb-memory-server": "^11.2.0",
     "tsup": "^8.3.0",
     "tsx": "^4.19.0",
     "typescript": "^5.6.0",
