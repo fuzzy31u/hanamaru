@@ -194,6 +194,56 @@ describe('createWebExtractHandler', () => {
     expect(body.summary).toContain('重複')
   })
 
+  it('passes English familyLabels to the agent when lang=en', async () => {
+    const review: ReviewResult = { conflicts: [], toolCalls: [], summary: '' }
+    const agent = makeAgent(review)
+    const handler = createWebExtractHandler({
+      extractor: makeExtractor([highConfidenceEvent]),
+      children,
+      thresholds: DEFAULT_THRESHOLDS,
+      agent,
+    })
+    const res = await appWith(handler).request('/api/extract', {
+      method: 'POST',
+      body: form({ text: '授業参観', lang: 'en' }),
+    })
+    expect(res.status).toBe(200)
+    const ctx = (agent.reviewAndPersist as ReturnType<typeof vi.fn>).mock.calls[0]![1] as {
+      familyLabels: Record<string, string>
+    }
+    expect(ctx.familyLabels).toEqual({
+      child1: 'Daughter',
+      child2: 'Son',
+      child3: 'Youngest',
+      self: 'Me',
+    })
+  })
+
+  it('passes Japanese familyLabels to the agent when lang is not en', async () => {
+    const review: ReviewResult = { conflicts: [], toolCalls: [], summary: '' }
+    const agent = makeAgent(review)
+    const handler = createWebExtractHandler({
+      extractor: makeExtractor([highConfidenceEvent]),
+      children,
+      thresholds: DEFAULT_THRESHOLDS,
+      agent,
+    })
+    const res = await appWith(handler).request('/api/extract', {
+      method: 'POST',
+      body: form({ text: '授業参観' }),
+    })
+    expect(res.status).toBe(200)
+    const ctx = (agent.reviewAndPersist as ReturnType<typeof vi.fn>).mock.calls[0]![1] as {
+      familyLabels: Record<string, string>
+    }
+    expect(ctx.familyLabels).toEqual({
+      child1: '長女',
+      child2: '長男',
+      child3: '末っ子',
+      self: '自分',
+    })
+  })
+
   it('returns 400 for an empty body', async () => {
     const handler = createWebExtractHandler({
       extractor: makeExtractor([highConfidenceEvent]),

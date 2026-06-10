@@ -60,6 +60,18 @@ function familyLabels(children: ChildrenMap) {
   }
 }
 
+/**
+ * English display labels for family members. Used per-request when the web demo
+ * runs with `?lang=en` so conflict members come back in English, WITHOUT
+ * touching the family's CHILD*_NAME Cloud Run env (which stays Japanese).
+ */
+const EN_FAMILY_LABELS = {
+  child1: 'Daughter',
+  child2: 'Son',
+  child3: 'Youngest',
+  self: 'Me',
+} as const
+
 /** Family label for an event title, e.g. 'child1'→'長女', 'unknown'→'不明'. */
 function memberLabel(children: ChildrenMap, attributedTo: ChildId): string {
   if (attributedTo === 'unknown') return '不明'
@@ -83,12 +95,15 @@ export function createWebExtractHandler(deps: WebExtractHandlerDeps) {
   return async function handleWebExtract(c: Context): Promise<Response> {
     // Parse multipart/form-data: a `text` field + zero-or-more `images` file parts.
     let text = ''
+    let lang = ''
     const images: ExtractionInput['images'] = []
     const imageParts: File[] = []
     try {
       const body = await c.req.parseBody({ all: true })
       const rawText = body.text
       if (typeof rawText === 'string') text = rawText
+      const rawLang = body.lang
+      if (typeof rawLang === 'string') lang = rawLang
 
       const rawImages = body.images
       const fileParts: unknown[] = Array.isArray(rawImages)
@@ -216,8 +231,9 @@ export function createWebExtractHandler(deps: WebExtractHandlerDeps) {
       let summary = ''
 
       if (deps.agent) {
+        const labels = lang === 'en' ? EN_FAMILY_LABELS : familyLabels(deps.children)
         const review = await deps.agent.reviewAndPersist(attributed, {
-          familyLabels: familyLabels(deps.children),
+          familyLabels: labels,
           nowIso: input.postedAt,
           source: 'web',
           sourceId: null,

@@ -609,9 +609,9 @@
             "From a school newsletter or message — text or photo — Gemini extracts the family's events. A MongoDB MCP agent checks existing events and detects double-bookings.",
           labelText: "Message text",
           hintText:
-            'Use a prefix to set the owner: <code>#長女</code> <code>#長男</code> <code>#?</code> (needs confirmation) <code>#!!</code> (auto-register)',
+            'Use a prefix to set the owner: <code>#daughter</code> <code>#son</code> <code>#youngest</code> <code>#me</code> <code>#?</code> (needs confirmation) <code>#!!</code> (auto-register)',
           textPlaceholder:
-            "e.g.) #長女\nFrom XX Elementary School: Fri Jun 20, 14:00 — class observation. Location: Room 3-2. Please bring indoor shoes.",
+            "e.g.) #daughter\nFrom XX Elementary School: Fri Jun 20, 14:00 — class observation. Location: Room 3-2. Please bring indoor shoes.",
           labelImages: "Image (newsletter photo, etc. — optional)",
           submit: "Extract events",
           submitting: "Extracting…",
@@ -623,11 +623,11 @@
             "Hanamaru · Dry-run demo (no writes are made to Google Calendar)",
           footerCalendar:
             "Hanamaru · Auto-registered events are reflected in the demo Google Calendar.",
-          memberChild1: "長女",
-          memberChild2: "長男",
-          memberChild3: "末っ子",
-          memberSelf: "自分",
-          memberUnknown: "不明",
+          memberChild1: "Daughter",
+          memberChild2: "Son",
+          memberChild3: "Youngest",
+          memberSelf: "Me",
+          memberUnknown: "Unknown",
           eventsHeading: function (n) {
             return "📅 Extracted events (" + n + ")";
           },
@@ -984,6 +984,7 @@
         try {
           const fd = new FormData();
           fd.append("text", text);
+          fd.append("lang", LANG);
           if (file) fd.append("images", file);
 
           const res = await fetch("/api/extract", { method: "POST", body: fd });
