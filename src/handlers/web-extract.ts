@@ -1,4 +1,6 @@
+import { randomBytes } from 'node:crypto'
 import type { Context } from 'hono'
+import type { CalendarClient } from '~/adapters/google-calendar'
 import type { ChildrenMap } from '~/config/children'
 import type { ChildId, ExtractedEvent, ExtractionInput } from '~/config/schema'
 import type { Thresholds } from '~/config/thresholds'
@@ -20,6 +22,13 @@ export type WebExtractHandlerDeps = {
   /** Optional attribution-hints store. When set, mirrors the orchestrator's
    *  hints lookup; otherwise attribution falls back to a no-op (always null). */
   hints?: AttributionHintsStore
+  /** Optional Google Calendar client. When set together with `demoCalendarId`,
+   *  the web demo WRITES auto-register events to the demo calendar instead of a
+   *  pure dry-run. */
+  calendar?: CalendarClient
+  /** Demo calendar id to write auto-register events into. Only effective when
+   *  `calendar` is also provided. */
+  demoCalendarId?: string
 }
 
 /** Cheap input guards for the public /api/extract endpoint, which calls Gemini
@@ -49,6 +58,17 @@ function familyLabels(children: ChildrenMap) {
     child3: children.child3.label,
     self: children.self.label,
   }
+}
+
+/** Family label for an event title, e.g. 'child1'→'長女', 'unknown'→'不明'. */
+function memberLabel(children: ChildrenMap, attributedTo: ChildId): string {
+  if (attributedTo === 'unknown') return '不明'
+  return children[attributedTo].label
+}
+
+/** Google Calendar event IDs must match [a-v0-9]{5,1024}; hex (0-9a-f) qualifies. */
+function randomEventId(): string {
+  return randomBytes(16).toString('hex')
 }
 
 /**
@@ -159,6 +179,38 @@ export function createWebExtractHandler(deps: WebExtractHandlerDeps) {
         route: decideRoute(e, { modeHint, thresholds: deps.thresholds }),
       }))
 
+      // Live demo calendar: when configured, WRITE every auto-register event to a
+      // single shared Google Calendar so the embedded view reflects the result.
+      // Failures are non-fatal — the extraction + MCP analysis still return.
+      const calendarWritten = Boolean(deps.calendar && deps.demoCalendarId)
+      const calendarLinks: Array<{ title: string; htmlLink: string }> = []
+      if (deps.calendar && deps.demoCalendarId) {
+        const cal = deps.calendar
+        const calendarId = deps.demoCalendarId
+        for (let i = 0; i < attributed.length; i++) {
+          const e = attributed[i]
+          if (!e || events[i]?.route !== 'auto-register') continue
+          try {
+            const inserted = await cal.insertEvent({
+              calendarId,
+              eventId: randomEventId(),
+              summary: `${e.title}（${memberLabel(deps.children, e.attributedTo)}）`,
+              description: e.description,
+              location: e.location,
+              startAt: e.startAt,
+              endAt: e.endAt,
+              allDay: e.allDay,
+            })
+            calendarLinks.push({ title: e.title, htmlLink: inserted.htmlLink })
+          } catch (err) {
+            logger.warn('webExtract.calendarWriteFailed', {
+              title: e.title,
+              reason: err instanceof Error ? err.message : String(err),
+            })
+          }
+        }
+      }
+
       let conflicts: Awaited<ReturnType<ScheduleAgent['reviewAndPersist']>>['conflicts'] = []
       let toolCalls: Awaited<ReturnType<ScheduleAgent['reviewAndPersist']>>['toolCalls'] = []
       let summary = ''
@@ -175,12 +227,28 @@ export function createWebExtractHandler(deps: WebExtractHandlerDeps) {
         summary = review.summary
       }
 
-      return c.json({ mcpEnabled, events, conflicts, toolCalls, summary })
+      return c.json({
+        mcpEnabled,
+        events,
+        conflicts,
+        toolCalls,
+        summary,
+        calendarWritten,
+        calendarLinks,
+      })
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
       logger.error('webExtract.failed', { reason: message })
       // Return 200 with an error field so the UI can display it gracefully.
-      return c.json({ mcpEnabled, error: message, events: [], conflicts: [], toolCalls: [] })
+      return c.json({
+        mcpEnabled,
+        error: message,
+        events: [],
+        conflicts: [],
+        toolCalls: [],
+        calendarWritten: false,
+        calendarLinks: [],
+      })
     }
   }
 }

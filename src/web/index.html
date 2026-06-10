@@ -386,6 +386,62 @@
         padding: 16px 0;
         text-align: center;
       }
+      .cal-links {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        margin-bottom: 12px;
+      }
+      .cal-link {
+        font-size: 0.88rem;
+        color: var(--auto);
+        background: var(--auto-soft);
+        border-radius: 8px;
+        padding: 8px 12px;
+      }
+      .cal-link a {
+        color: var(--accent);
+        font-weight: 600;
+        text-decoration: none;
+        margin-left: 6px;
+      }
+      .cal-link a:hover {
+        text-decoration: underline;
+      }
+      .cal-frame-wrap {
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        overflow: hidden;
+        background: var(--surface);
+      }
+      .cal-frame-wrap iframe {
+        display: block;
+        width: 100%;
+        height: 400px;
+        border: 0;
+      }
+      .cal-toolbar {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 10px;
+      }
+      button.refresh {
+        appearance: none;
+        border: 1px solid var(--border);
+        background: var(--surface);
+        color: var(--text);
+        font: inherit;
+        font-size: 0.82rem;
+        font-weight: 600;
+        padding: 7px 14px;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: background 0.15s;
+      }
+      button.refresh:hover {
+        background: #f1f5f9;
+      }
       footer {
         margin-top: 40px;
         text-align: center;
@@ -395,6 +451,9 @@
     </style>
   </head>
   <body>
+    <script>
+      window.DEMO_CALENDAR_ID = "__DEMO_CALENDAR_ID__";
+    </script>
     <div class="wrap">
       <header class="hero">
         <div class="logo-row">
@@ -437,7 +496,19 @@
 
       <div id="results" aria-live="polite"></div>
 
-      <footer>Hanamaru · ドライランデモ（Google カレンダーへの書き込みは行いません）</footer>
+      <section id="demoCalendar" style="display: none; margin-top: 28px">
+        <h2 class="section-title">📆 デモ用 Google カレンダー</h2>
+        <div class="cal-toolbar">
+          <button type="button" id="calRefresh" class="refresh">カレンダーを更新</button>
+          <span class="hint">自動登録した予定がここに反映されます</span>
+        </div>
+        <div class="cal-links" id="calLinks"></div>
+        <div class="cal-frame-wrap">
+          <iframe id="calFrame" title="デモ用 Google カレンダー" loading="lazy"></iframe>
+        </div>
+      </section>
+
+      <footer id="footer">Hanamaru · ドライランデモ（Google カレンダーへの書き込みは行いません）</footer>
     </div>
 
     <script>
@@ -447,6 +518,38 @@
       const submitBtn = document.getElementById("submit");
       const statusEl = document.getElementById("status");
       const results = document.getElementById("results");
+      const demoCalendarSection = document.getElementById("demoCalendar");
+      const calFrame = document.getElementById("calFrame");
+      const calRefreshBtn = document.getElementById("calRefresh");
+      const calLinksEl = document.getElementById("calLinks");
+      const footerEl = document.getElementById("footer");
+
+      const DEMO_CALENDAR_ID =
+        typeof window.DEMO_CALENDAR_ID === "string" ? window.DEMO_CALENDAR_ID.trim() : "";
+      const DEMO_CALENDAR_ENABLED = DEMO_CALENDAR_ID.length > 0;
+
+      function calEmbedSrc() {
+        // Cache-buster so a manual/auto refresh shows newly written events.
+        return (
+          "https://calendar.google.com/calendar/embed?src=" +
+          encodeURIComponent(DEMO_CALENDAR_ID) +
+          "&ctz=Asia%2FTokyo&mode=WEEK&_=" +
+          Date.now()
+        );
+      }
+
+      function refreshCalendar() {
+        if (!DEMO_CALENDAR_ENABLED) return;
+        calFrame.src = calEmbedSrc();
+      }
+
+      if (DEMO_CALENDAR_ENABLED) {
+        demoCalendarSection.style.display = "block";
+        calFrame.src = calEmbedSrc();
+        calRefreshBtn.addEventListener("click", refreshCalendar);
+        footerEl.textContent =
+          "Hanamaru · 自動登録された予定はデモ用 Google カレンダーに反映されます";
+      }
 
       const MEMBER_LABELS = {
         child1: "長女",
@@ -597,7 +700,30 @@
         );
       }
 
+      function renderCalendarResult(data) {
+        if (!DEMO_CALENDAR_ENABLED) return;
+        const links = (data && data.calendarWritten && data.calendarLinks) || [];
+        if (links.length) {
+          calLinksEl.innerHTML = links
+            .map(function (l) {
+              const open = l.htmlLink
+                ? ' <a href="' + esc(l.htmlLink) + '" target="_blank" rel="noopener">開く</a>'
+                : "";
+              return (
+                '<span class="cal-link">✅ Google カレンダーに登録: ' +
+                esc(l.title) +
+                open +
+                "</span>"
+              );
+            })
+            .join("");
+          // Reflect the newly written events in the embedded calendar.
+          refreshCalendar();
+        }
+      }
+
       function render(data) {
+        renderCalendarResult(data);
         if (data.error) {
           results.innerHTML = '<div class="error-box">エラー: ' + esc(data.error) + "</div>";
           return;

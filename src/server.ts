@@ -80,6 +80,10 @@ async function bootstrap() {
   const children = buildChildren(process.env)
   const thresholds = loadThresholdsFromEnv(process.env)
 
+  // Live demo calendar: when set, the web /api/extract endpoint writes
+  // auto-register events to this Google Calendar and the web page embeds it.
+  const demoCalendarId = process.env.DEMO_CALENDAR_ID
+
   const slack = createSlackClient({ botToken: slackBotToken })
   const gemini = createGeminiClient({
     projectId,
@@ -157,11 +161,20 @@ async function bootstrap() {
   app.get('/healthz', (c) => c.text('ok'))
 
   // Web demo: serve the single-page UI and its headless extract API.
-  const webHtml = loadWebHtml()
+  // Inject the demo calendar id so the client knows which calendar to embed.
+  const webHtml = loadWebHtml().replaceAll('__DEMO_CALENDAR_ID__', demoCalendarId ?? '')
   app.get('/', (c) => c.html(webHtml))
   app.post(
     '/api/extract',
-    createWebExtractHandler({ extractor, children, thresholds, agent, hints }),
+    createWebExtractHandler({
+      extractor,
+      children,
+      thresholds,
+      agent,
+      hints,
+      calendar,
+      demoCalendarId,
+    }),
   )
 
   app.post('/slack/events', async (c) => {

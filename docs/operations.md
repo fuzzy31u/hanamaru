@@ -130,6 +130,22 @@ MongoDB MCP は feature flag (`ENABLE_MONGO_MCP`) で制御される。デフォ
 
 > Note: Cloud Run の env / secret env は Terraform の `lifecycle.ignore_changes`（`template[0].containers[0].env`）対象であり、実値は上記 gcloud / デプロイワークフローで管理する。Terraform は secret container と IAM（runtime SA への `roles/secretmanager.secretAccessor`、project レベル）のみ管理する。`mongodb-mcp-server` は production 依存に含まれるため、コンテナ内で subprocess として起動できる（ランタイムでの network fetch は不要）。
 
+### Web demo calendar (live demo)
+
+`DEMO_CALENDAR_ID` を設定すると、web デモの `/api/extract` が「自動登録」判定の予定を実際にその Google カレンダーへ書き込み、デモページに当該カレンダーを埋め込んで表示する。未設定ならこれまで通りドライラン（書き込みなし）。
+
+- 公開カレンダーの ID を指定する（埋め込み iframe が公開アクセス前提のため）。
+- カレンダーへの書き込みは `GOOGLE_CALENDAR_REFRESH_TOKEN`（既存の Calendar OAuth）で行うため、対象カレンダーにそのアカウントの書き込み権限が必要。
+- env のみで管理（Terraform 変更不要）。設定例:
+
+  ```bash
+  gcloud run services update hanamaru \
+    --region=asia-northeast1 \
+    --update-env-vars=DEMO_CALENDAR_ID=<id>
+  ```
+
+  無効化（ドライランに戻す）するときは `--update-env-vars=DEMO_CALENDAR_ID=`。
+
 ## E2E manual checklist (before release)
 
 ```text

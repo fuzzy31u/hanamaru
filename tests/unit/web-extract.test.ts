@@ -1,11 +1,25 @@
 import { Hono } from 'hono'
 import { describe, expect, it, vi } from 'vitest'
+import type { CalendarClient } from '~/adapters/google-calendar'
 import type { ChildrenMap } from '~/config/children'
 import type { ExtractedEvent } from '~/config/schema'
 import { DEFAULT_THRESHOLDS } from '~/config/thresholds'
 import { createWebExtractHandler } from '~/handlers/web-extract'
 import type { ReviewResult, ScheduleAgent } from '~/pipeline/agent'
 import type { Extractor } from '~/pipeline/extractor'
+
+function makeCalendar(opts: { rejects?: boolean } = {}): CalendarClient {
+  return {
+    insertEvent: vi.fn(async (input) => {
+      if (opts.rejects) throw new Error('calendar exploded')
+      return {
+        id: input.eventId,
+        htmlLink: `https://calendar.google.com/event?eid=${input.eventId}`,
+      }
+    }),
+    deleteEvent: vi.fn(async () => {}),
+  }
+}
 
 const children = {
   child1: { label: '長女', calendarId: 'c1', aliases: [], contexts: [] },
@@ -60,6 +74,8 @@ type ExtractResponse = {
   toolCalls: Array<Record<string, unknown>>
   summary?: string
   error?: string
+  calendarWritten?: boolean
+  calendarLinks?: Array<{ title: string; htmlLink: string }>
 }
 
 function appWith(handler: ReturnType<typeof createWebExtractHandler>) {
@@ -206,6 +222,95 @@ describe('createWebExtractHandler', () => {
     expect(res.status).toBe(413)
     const body = await readJson(res)
     expect(body.error).toBeTruthy()
+  })
+
+  it('writes auto-register events to the demo calendar and returns calendarLinks', async () => {
+    const calendar = makeCalendar()
+    const handler = createWebExtractHandler({
+      extractor: makeExtractor([highConfidenceEvent, lowConfidenceEvent]),
+      children,
+      thresholds: DEFAULT_THRESHOLDS,
+      calendar,
+      demoCalendarId: 'demo@group.calendar.google.com',
+    })
+    const res = await appWith(handler).request('/api/extract', {
+      method: 'POST',
+      body: form({ text: '授業参観のお知らせ' }),
+    })
+    expect(res.status).toBe(200)
+    const body = await readJson(res)
+    expect(body.calendarWritten).toBe(true)
+    // Only the auto-register event is written (the low-confidence 'ask' event is not).
+    expect(calendar.insertEvent).toHaveBeenCalledTimes(1)
+    const callArg = (calendar.insertEvent as ReturnType<typeof vi.fn>).mock.calls[0]![0] as {
+      calendarId: string
+      eventId: string
+      summary: string
+    }
+    expect(callArg.calendarId).toBe('demo@group.calendar.google.com')
+    expect(callArg.eventId).toMatch(/^[a-v0-9]{5,}$/)
+    expect(callArg.summary).toBe('授業参観（長女）')
+    expect(body.calendarLinks).toHaveLength(1)
+    expect(body.calendarLinks![0]!.title).toBe('授業参観')
+    expect(body.calendarLinks![0]!.htmlLink).toContain('calendar.google.com')
+  })
+
+  it('preserves dry-run when calendar/demoCalendarId are not provided', async () => {
+    const calendar = makeCalendar()
+    const handler = createWebExtractHandler({
+      extractor: makeExtractor([highConfidenceEvent]),
+      children,
+      thresholds: DEFAULT_THRESHOLDS,
+      // no calendar / demoCalendarId
+    })
+    const res = await appWith(handler).request('/api/extract', {
+      method: 'POST',
+      body: form({ text: '授業参観' }),
+    })
+    const body = await readJson(res)
+    expect(calendar.insertEvent).not.toHaveBeenCalled()
+    expect(body.calendarWritten).toBe(false)
+    expect(body.calendarLinks).toEqual([])
+  })
+
+  it('swallows calendar write failures and still returns 200 with events', async () => {
+    const calendar = makeCalendar({ rejects: true })
+    const handler = createWebExtractHandler({
+      extractor: makeExtractor([highConfidenceEvent]),
+      children,
+      thresholds: DEFAULT_THRESHOLDS,
+      calendar,
+      demoCalendarId: 'demo@group.calendar.google.com',
+    })
+    const res = await appWith(handler).request('/api/extract', {
+      method: 'POST',
+      body: form({ text: '授業参観' }),
+    })
+    expect(res.status).toBe(200)
+    const body = await readJson(res)
+    expect(body.events).toHaveLength(1)
+    expect(body.calendarWritten).toBe(true)
+    // The failed insert produced no link.
+    expect(body.calendarLinks).toEqual([])
+  })
+
+  it('does not write ask-route events to the demo calendar', async () => {
+    const calendar = makeCalendar()
+    const handler = createWebExtractHandler({
+      extractor: makeExtractor([lowConfidenceEvent]),
+      children,
+      thresholds: DEFAULT_THRESHOLDS,
+      calendar,
+      demoCalendarId: 'demo@group.calendar.google.com',
+    })
+    const res = await appWith(handler).request('/api/extract', {
+      method: 'POST',
+      body: form({ text: '謎の予定' }),
+    })
+    const body = await readJson(res)
+    expect(calendar.insertEvent).not.toHaveBeenCalled()
+    expect(body.calendarWritten).toBe(true)
+    expect(body.calendarLinks).toEqual([])
   })
 
   it('returns 200 with an error field when the extractor throws', async () => {
