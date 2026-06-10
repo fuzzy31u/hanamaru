@@ -193,6 +193,21 @@ describe('createWebExtractHandler', () => {
     expect(body.error).toBeTruthy()
   })
 
+  it('returns 413 for an oversized text request (> 20KB)', async () => {
+    const handler = createWebExtractHandler({
+      extractor: makeExtractor([highConfidenceEvent]),
+      children,
+      thresholds: DEFAULT_THRESHOLDS,
+    })
+    const res = await appWith(handler).request('/api/extract', {
+      method: 'POST',
+      body: form({ text: 'あ'.repeat(20_001) }),
+    })
+    expect(res.status).toBe(413)
+    const body = await readJson(res)
+    expect(body.error).toBeTruthy()
+  })
+
   it('returns 200 with an error field when the extractor throws', async () => {
     const handler = createWebExtractHandler({
       extractor: makeExtractor([], { throws: true }),

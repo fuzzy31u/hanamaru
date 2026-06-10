@@ -22,6 +22,13 @@ export type WebExtractHandlerDeps = {
   hints?: AttributionHintsStore
 }
 
+/** Cheap input guards for the public /api/extract endpoint, which calls Gemini
+ *  on arbitrary input. */
+const MAX_TEXT_BYTES = 20_000
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024
+const MAX_IMAGES = 3
+const ALLOWED_MIME = /^image\/(jpeg|png|webp|gif|heic|heif)$/i
+
 type WebEventView = {
   title: string
   startAt: string
@@ -57,6 +64,7 @@ export function createWebExtractHandler(deps: WebExtractHandlerDeps) {
     // Parse multipart/form-data: a `text` field + zero-or-more `images` file parts.
     let text = ''
     const images: ExtractionInput['images'] = []
+    const imageParts: File[] = []
     try {
       const body = await c.req.parseBody({ all: true })
       const rawText = body.text
@@ -70,11 +78,7 @@ export function createWebExtractHandler(deps: WebExtractHandlerDeps) {
           : []
       for (const part of fileParts) {
         if (part instanceof File) {
-          const bytes = new Uint8Array(await part.arrayBuffer())
-          images.push({
-            base64: Buffer.from(bytes).toString('base64'),
-            mimeType: part.type || 'application/octet-stream',
-          })
+          imageParts.push(part)
         }
       }
     } catch (err) {
@@ -82,8 +86,33 @@ export function createWebExtractHandler(deps: WebExtractHandlerDeps) {
       return c.json({ error: 'リクエストの解析に失敗しました。' }, 400)
     }
 
-    if (text.trim() === '' && images.length === 0) {
+    if (text.trim() === '' && imageParts.length === 0) {
       return c.json({ error: 'テキストまたは画像のいずれかが必要です。' }, 400)
+    }
+
+    if (Buffer.byteLength(text, 'utf8') > MAX_TEXT_BYTES) {
+      return c.json({ error: 'テキストが長すぎます（上限 20KB）。' }, 413)
+    }
+
+    if (imageParts.length > MAX_IMAGES) {
+      return c.json({ error: `画像は最大 ${MAX_IMAGES} 枚までです。` }, 400)
+    }
+
+    for (const part of imageParts) {
+      if (!ALLOWED_MIME.test(part.type)) {
+        return c.json({ error: '画像は JPEG/PNG/WebP/GIF のみ対応しています。' }, 400)
+      }
+      if (part.size > MAX_IMAGE_BYTES) {
+        return c.json({ error: '画像が大きすぎます（1 枚あたり上限 5MB）。' }, 413)
+      }
+    }
+
+    for (const part of imageParts) {
+      const bytes = new Uint8Array(await part.arrayBuffer())
+      images.push({
+        base64: Buffer.from(bytes).toString('base64'),
+        mimeType: part.type,
+      })
     }
 
     const { prefixHint, modeHint, remainingText } = parsePrefix(text)

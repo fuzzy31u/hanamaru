@@ -476,7 +476,7 @@
       function fmtJst(iso, allDay) {
         if (!iso) return "(日時なし)";
         const d = new Date(iso);
-        if (Number.isNaN(d.getTime())) return esc(iso);
+        if (Number.isNaN(d.getTime())) return String(iso);
         const opts = allDay
           ? { year: "numeric", month: "long", day: "numeric", weekday: "short", timeZone: "Asia/Tokyo" }
           : {
@@ -495,7 +495,7 @@
         const pct = Math.round((value || 0) * 100);
         return (
           '<div class="conf-row"><span>' +
-          label +
+          esc(label) +
           '</span><span class="bar"><i style="width:' +
           pct +
           '%"></i></span><span>' +
