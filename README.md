@@ -2,8 +2,6 @@
 
 AI scheduling agent that watches Slack and writes Google Calendar entries for the family.
 
-Built for the **[Google Cloud Rapid Agent Hackathon](https://rapid-agent.devpost.com/) — MongoDB track**.
-
 ## What it does
 
 Post a photo of your child's school newsletter to a Slack channel (or the web UI). Hanamaru reads
@@ -12,11 +10,9 @@ schedule conflicts across the whole family, and writes the events to the appropr
 Calendar. High-confidence extractions go straight to the calendar; ambiguous ones ask for your
 confirmation in the same Slack thread.
 
-## Google Cloud Rapid Agent Hackathon
+## Key capabilities
 
-Hanamaru is the hackathon submission for the **MongoDB partner track**.
-
-Key hackathon additions (all behind the `ENABLE_MONGO_MCP` feature flag):
+The MongoDB integration is behind the `ENABLE_MONGO_MCP` feature flag:
 
 - **MongoDB Atlas events store** — every extracted family event is persisted in Atlas with rich
   metadata (`source`, `startMs`/`endMs` for range queries, `calendarEventId`, etc.).
@@ -32,11 +28,9 @@ Key hackathon additions (all behind the `ENABLE_MONGO_MCP` feature flag):
   `generateContent` call where Gemini reads the newsletter image/text and returns structured
   calendar events (title, datetimes, family-member attribution, confidence). Gemini's role is
   extraction only; it does not compose MongoDB queries or compute epoch-millisecond values.
-- **Web demo UI** (`GET /`) — a judge-testable page: paste newsletter text or upload an image,
-  see extracted events, detected conflicts, and the live MongoDB MCP `find`/`insert-many`
-  tool-call trace. Dry-run only (no calendar write).
-
-See [`docs/hackathon-submission.md`](docs/hackathon-submission.md) for the full submission writeup.
+- **Web demo UI** (`GET /`) — paste newsletter text or upload an image, see extracted events,
+  detected conflicts, and the live MongoDB MCP `find`/`insert-many` tool-call trace. Dry-run only
+  (no calendar write).
 
 ## Architecture
 
@@ -122,7 +116,6 @@ See `docs/operations.md` for the full runbook, including the MongoDB MCP setup s
 
 ## Docs
 
-- [Hackathon submission](docs/hackathon-submission.md)
 - [Design spec](docs/superpowers/specs/2026-06-06-hanamaru-design.md)
 - [Implementation plan](docs/superpowers/plans/2026-06-07-hanamaru-phase1.md)
 - [Operations runbook](docs/operations.md)
