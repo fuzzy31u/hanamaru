@@ -154,6 +154,39 @@ describe('runWithTools', () => {
     expect(result.text).toBe('')
   })
 
+  it('continues the loop when dispatch rejects, feeding the error back to the model', async () => {
+    generateContentMock
+      .mockResolvedValueOnce(
+        functionCallResponse([{ name: 'find', args: { collection: 'events' } }]),
+      )
+      .mockResolvedValueOnce(textResponse('recovered'))
+
+    const dispatch = vi.fn().mockRejectedValue(new Error('timeout'))
+
+    const client = makeClient()
+    const result = await client.runWithTools({
+      systemInstruction: 'sys',
+      contents: [{ role: 'user', parts: [{ text: 'hi' }] }],
+      tools: TOOLS,
+      dispatch,
+    })
+
+    // Loop continued past the failed dispatch and produced the final text.
+    expect(dispatch).toHaveBeenCalledTimes(1)
+    expect(generateContentMock).toHaveBeenCalledTimes(2)
+    expect(result.text).toBe('recovered')
+
+    // The second turn's functionResponse carries an error (not output).
+    const secondContents = generateContentMock.mock.calls[1]?.[0]?.contents
+    const lastTurn = secondContents[secondContents.length - 1]
+    expect(lastTurn.role).toBe('user')
+    const fnResponse = lastTurn.parts[0].functionResponse
+    expect(fnResponse.name).toBe('find')
+    expect(fnResponse.response).toHaveProperty('error')
+    expect(fnResponse.response.error).toBe('timeout')
+    expect(fnResponse.response).not.toHaveProperty('output')
+  })
+
   it('dispatches multiple function calls returned in a single turn', async () => {
     generateContentMock
       .mockResolvedValueOnce(

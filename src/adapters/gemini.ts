@@ -247,15 +247,29 @@ export function createGeminiClient(config: GeminiClientConfig): GeminiClient {
         })
 
         // Execute every requested tool and append a functionResponse part per call.
+        // A dispatch failure must not abort the loop: log it, record it in the
+        // trace, and feed the error back to the model so it can recover.
         const responseParts: Part[] = []
         for (const call of calls) {
           const name = call.name ?? ''
           const callArgs = call.args ?? {}
-          const result = await args.dispatch(name, callArgs)
-          toolCalls.push({ name, args: callArgs, result })
-          responseParts.push({
-            functionResponse: { name, response: { output: result } },
-          })
+          try {
+            const result = await args.dispatch(name, callArgs)
+            // MCP tools may return rich/BSON-derived objects; normalize so the
+            // SDK's JSON encoding never chokes on non-serializable values.
+            const safeResult = JSON.parse(JSON.stringify(result ?? null))
+            toolCalls.push({ name, args: callArgs, result: safeResult })
+            responseParts.push({
+              functionResponse: { id: call.id, name, response: { output: safeResult } },
+            })
+          } catch (err) {
+            const message = err instanceof Error ? err.message : String(err)
+            logger.warn('gemini.tools.dispatchFailed', { name, message })
+            toolCalls.push({ name, args: callArgs, result: err })
+            responseParts.push({
+              functionResponse: { id: call.id, name, response: { error: message } },
+            })
+          }
         }
         history.push({ role: 'user', parts: responseParts })
 
