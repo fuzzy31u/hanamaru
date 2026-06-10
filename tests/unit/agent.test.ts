@@ -137,6 +137,26 @@ describe('createScheduleAgent.reviewAndPersist', () => {
     expect(res.toolCalls).toEqual([])
   })
 
+  it('coerces malformed ConflictNote field types without throwing', async () => {
+    const gemini = makeGemini(async () => ({
+      text: '{"conflicts":[{"newEventTitle":42,"conflictsWith":null,"when":"bad","members":"child1"}],"summary":"ok"}',
+      toolCalls: [],
+    }))
+    const agent = createScheduleAgent({ gemini, mcp: makeMcp(), dbName: 'hanamaru' })
+
+    const res = await agent.reviewAndPersist([sampleEvent], context)
+    expect(res.conflicts).toHaveLength(1)
+    const c = res.conflicts[0]!
+    expect(c.newEventTitle).toBe('42')
+    // null -> String(null ?? '') -> ''
+    expect(c.conflictsWith).toBe('')
+    expect(c.when).toBe('bad')
+    // non-array members are coerced to an empty array
+    expect(Array.isArray(c.members)).toBe(true)
+    expect(c.members).toEqual([])
+    expect(res.summary).toBe('ok')
+  })
+
   it('returns empty conflicts with raw text as summary on unparseable final text', async () => {
     const gemini = makeGemini(async () => ({ text: 'not json at all', toolCalls: [] }))
     const agent = createScheduleAgent({ gemini, mcp: makeMcp(), dbName: 'hanamaru' })

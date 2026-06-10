@@ -74,22 +74,32 @@ async function bootstrap() {
   // missing/misconfigured connection string when the flag is OFF cannot break boot.
   // We do NOT block bootstrap on a network connect; listTools/callTool auto-connect lazily.
   let agent: ScheduleAgent | undefined
+  let mcpClient: ReturnType<typeof createMongoMcpClient> | undefined
   if (process.env.ENABLE_MONGO_MCP === 'true') {
     try {
       const connectionString = await readEnvOrSecret(
         'MDB_MCP_CONNECTION_STRING',
         'mdb-mcp-connection-string',
       )
-      const mcp = createMongoMcpClient({ connectionString })
+      mcpClient = createMongoMcpClient({ connectionString })
       agent = createScheduleAgent({
         gemini,
-        mcp,
+        mcp: mcpClient,
         dbName: process.env.MONGO_DB_NAME ?? 'hanamaru',
       })
       logger.info('server.mongoMcpEnabled', { dbName: process.env.MONGO_DB_NAME ?? 'hanamaru' })
     } catch (err) {
       logger.error('server.mongoMcpInitFailed', { err: String(err) })
     }
+  }
+
+  // Graceful shutdown: on Cloud Run SIGTERM, close the MCP client so the
+  // mongodb-mcp-server subprocess is terminated before the container exits.
+  if (mcpClient) {
+    const client = mcpClient
+    process.once('SIGTERM', () => {
+      void client.close().finally(() => process.exit(0))
+    })
   }
 
   const orchestrator = createOrchestrator({

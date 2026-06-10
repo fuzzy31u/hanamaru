@@ -112,9 +112,15 @@ export function createOrchestrator(deps: OrchestratorDeps) {
             logger.warn('orchestrator.agentFailed', { agentErr: String(agentErr) })
           }
         }
+        // Conflict-note posting must never fail the pipeline: the calendar write has
+        // already succeeded by the time this runs, so a transient Slack error here is
+        // logged and swallowed rather than marking idempotency as failed.
         const postConflictNote = async () => {
-          if (conflictNote) {
+          if (!conflictNote) return
+          try {
             await deps.slack.postThreadMessage(input.channelId, input.threadTs, conflictNote)
+          } catch (err) {
+            logger.warn('orchestrator.conflictNotePostFailed', { err: String(err) })
           }
         }
 
