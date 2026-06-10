@@ -8,7 +8,7 @@
    # 別環境を作るときは別 suffix (例: hanamaru-prod-NNNN) を使う。
    gcloud config configurations create hanamaru --no-activate    # 任意。会社プロファイルと分離
    gcloud config configurations activate hanamaru
-   gcloud config set account fuzzy31u@gmail.com                  # 個人 Gmail に切替
+   gcloud config set account <your-account@example.com>          # 個人 Gmail に切替
    gcloud projects create <project-id> --set-as-default    # 既に存在する場合はスキップ
    gcloud billing projects link <project-id> --billing-account=<your-billing-account-id>
    ```
