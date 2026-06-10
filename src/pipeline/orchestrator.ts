@@ -3,6 +3,7 @@ import type { ChildrenMap } from '~/config/children'
 import type { ExtractionInput } from '~/config/schema'
 import type { Thresholds } from '~/config/thresholds'
 import { logger } from '~/lib/logger'
+import type { ScheduleAgent } from '~/pipeline/agent'
 import { attributeEvents } from '~/pipeline/attributor'
 import type { CalendarWriter, WriteResult } from '~/pipeline/calendar-writer'
 import { decideRoute } from '~/pipeline/confidence'
@@ -11,6 +12,7 @@ import {
   type LabelMap,
   buildAskText,
   buildAutoRegisterText,
+  buildConflictNote,
   buildEmptyText,
   buildErrorText,
 } from '~/pipeline/replier'
@@ -27,6 +29,9 @@ export type OrchestratorDeps = {
   hints: AttributionHintsStore
   children: ChildrenMap
   thresholds: Thresholds
+  /** Optional MongoDB-MCP schedule agent. When set, runs after attribution to persist
+   *  events and detect conflicts. Gated by a feature flag in DI; failures are swallowed. */
+  agent?: ScheduleAgent
 }
 
 export type ProcessResult =
@@ -90,6 +95,29 @@ export function createOrchestrator(deps: OrchestratorDeps) {
           hintsLookup,
         })
 
+        // Optional MongoDB-MCP schedule agent: persists events + detects conflicts.
+        // reviewAndPersist never throws, but guard the whole call so the agent can
+        // never break the calendar pipeline.
+        let conflictNote = ''
+        if (deps.agent) {
+          try {
+            const review = await deps.agent.reviewAndPersist(attributed, {
+              familyLabels: labelMap(deps.children),
+              nowIso: input.postedAt,
+              source: 'slack',
+              sourceId: slackEventId,
+            })
+            conflictNote = buildConflictNote(review.conflicts, labelMap(deps.children))
+          } catch (agentErr) {
+            logger.warn('orchestrator.agentFailed', { agentErr: String(agentErr) })
+          }
+        }
+        const postConflictNote = async () => {
+          if (conflictNote) {
+            await deps.slack.postThreadMessage(input.channelId, input.threadTs, conflictNote)
+          }
+        }
+
         const autoEvents = attributed.filter(
           (e) =>
             decideRoute(e, { modeHint: input.modeHint, thresholds: deps.thresholds }) ===
@@ -124,6 +152,7 @@ export function createOrchestrator(deps: OrchestratorDeps) {
               buildAutoRegisterText(autoEvents, writeResults, labelMap(deps.children)),
             )
           }
+          await postConflictNote()
           return { kind: 'asked', pendingId }
         }
 
@@ -136,6 +165,7 @@ export function createOrchestrator(deps: OrchestratorDeps) {
           resultSummary: 'created',
           createdEventIds: writeResults.map((r) => r.eventId),
         })
+        await postConflictNote()
         return { kind: 'created', results: writeResults }
       } catch (err) {
         const reason = err instanceof Error ? err.message : String(err)

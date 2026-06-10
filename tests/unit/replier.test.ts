@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import type { ExtractedEvent } from '~/config/schema'
+import type { ConflictNote } from '~/pipeline/agent'
 import type { WriteResult } from '~/pipeline/calendar-writer'
 import {
   buildAskText,
   buildAutoRegisterText,
+  buildConflictNote,
   buildEmptyText,
   buildErrorText,
 } from '~/pipeline/replier'
@@ -78,5 +80,50 @@ describe('replier formatters', () => {
 
   it('formats error message', () => {
     expect(buildErrorText('boom')).toContain('抽出に失敗しました')
+  })
+})
+
+describe('buildConflictNote', () => {
+  it('returns empty string when there are no conflicts', () => {
+    expect(buildConflictNote([], labels)).toBe('')
+  })
+
+  it('formats one conflict with JST when and members', () => {
+    const conflicts: ConflictNote[] = [
+      {
+        newEventTitle: 'サッカー',
+        conflictsWith: 'ピアノ発表会',
+        when: '2026-06-10T09:00:00+09:00',
+        members: ['長男'],
+      },
+    ]
+    const text = buildConflictNote(conflicts, labels)
+    expect(text).toContain('⚠️ スケジュールの重複の可能性')
+    expect(text).toContain('サッカー')
+    expect(text).toContain('ピアノ発表会')
+    expect(text).toContain('6/10')
+    expect(text).toContain('長男')
+  })
+
+  it('formats multiple conflicts as multiple lines', () => {
+    const conflicts: ConflictNote[] = [
+      {
+        newEventTitle: 'サッカー',
+        conflictsWith: 'ピアノ',
+        when: '2026-06-10T09:00:00+09:00',
+        members: ['長男'],
+      },
+      {
+        newEventTitle: '検診',
+        conflictsWith: '保護者会',
+        when: '2026-06-11T14:00:00+09:00',
+        members: ['長女', '自分'],
+      },
+    ]
+    const text = buildConflictNote(conflicts, labels)
+    const lines = text.split('\n')
+    expect(lines.length).toBeGreaterThanOrEqual(3)
+    expect(text).toContain('検診')
+    expect(text).toContain('保護者会')
   })
 })

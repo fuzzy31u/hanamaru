@@ -1,4 +1,5 @@
 import type { ChildId, ExtractedEvent } from '~/config/schema'
+import type { ConflictNote } from '~/pipeline/agent'
 import type { WriteResult } from '~/pipeline/calendar-writer'
 
 export type LabelMap = Record<Exclude<ChildId, 'unknown'>, string>
@@ -103,6 +104,28 @@ export function buildAskText(events: ExtractedEvent[], labels: LabelMap): string
     '- ❌ 破棄',
     '- 「#長男 7/15 14:00 から」のように詳細を返信',
   )
+  return lines.join('\n')
+}
+
+/** Formats a single JST datetime like `6/10(火) 09:00`; falls back to the raw string if unparseable. */
+function formatJstWhen(when: string): string {
+  const date = new Date(when)
+  if (Number.isNaN(date.getTime())) return when
+  const p = jstParts(date)
+  return `${p.month}/${p.day}(${p.weekday}) ${p.hour}:${p.minute}`
+}
+
+/**
+ * Builds a Slack conflict-warning message from agent-detected conflicts.
+ * Returns '' when there are no conflicts so the caller can skip posting.
+ */
+export function buildConflictNote(conflicts: ConflictNote[], _labels: LabelMap): string {
+  if (conflicts.length === 0) return ''
+  const lines = ['⚠️ スケジュールの重複の可能性:']
+  for (const c of conflicts) {
+    const members = c.members.length > 0 ? `（${c.members.join('・')}）` : ''
+    lines.push(`・${formatJstWhen(c.when)} 「${c.newEventTitle}」⇄「${c.conflictsWith}」${members}`)
+  }
   return lines.join('\n')
 }
 

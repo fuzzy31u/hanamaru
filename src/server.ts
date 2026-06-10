@@ -2,6 +2,7 @@ import { serve } from '@hono/node-server'
 import { Hono } from 'hono'
 import { createGeminiClient } from '~/adapters/gemini'
 import { createCalendarClient } from '~/adapters/google-calendar'
+import { createMongoMcpClient } from '~/adapters/mcp-mongodb'
 import { readSecret } from '~/adapters/secrets'
 import { createSlackClient } from '~/adapters/slack'
 import { buildChildren } from '~/config/children'
@@ -10,6 +11,7 @@ import { type SlackEventCallback, handleSlackEvent } from '~/handlers/slack-even
 import { type ReactionAddedEvent, handleReaction } from '~/handlers/slack-reactions'
 import { logger } from '~/lib/logger'
 import { verifySlackSignature } from '~/lib/slack-signature'
+import { type ScheduleAgent, createScheduleAgent } from '~/pipeline/agent'
 import { createCalendarWriter } from '~/pipeline/calendar-writer'
 import { createExtractor } from '~/pipeline/extractor'
 import { createOrchestrator } from '~/pipeline/orchestrator'
@@ -67,6 +69,29 @@ async function bootstrap() {
 
   const extractor = createExtractor(gemini)
   const writer = createCalendarWriter(calendar, children)
+
+  // Feature-flagged MongoDB-MCP schedule agent. Construction is guarded so a
+  // missing/misconfigured connection string when the flag is OFF cannot break boot.
+  // We do NOT block bootstrap on a network connect; listTools/callTool auto-connect lazily.
+  let agent: ScheduleAgent | undefined
+  if (process.env.ENABLE_MONGO_MCP === 'true') {
+    try {
+      const connectionString = await readEnvOrSecret(
+        'MDB_MCP_CONNECTION_STRING',
+        'mdb-mcp-connection-string',
+      )
+      const mcp = createMongoMcpClient({ connectionString })
+      agent = createScheduleAgent({
+        gemini,
+        mcp,
+        dbName: process.env.MONGO_DB_NAME ?? 'hanamaru',
+      })
+      logger.info('server.mongoMcpEnabled', { dbName: process.env.MONGO_DB_NAME ?? 'hanamaru' })
+    } catch (err) {
+      logger.error('server.mongoMcpInitFailed', { err: String(err) })
+    }
+  }
+
   const orchestrator = createOrchestrator({
     extractor,
     writer,
@@ -76,6 +101,7 @@ async function bootstrap() {
     hints,
     children,
     thresholds,
+    agent,
   })
 
   const allowedUserIds = new Set(
