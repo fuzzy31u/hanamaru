@@ -1,0 +1,1004 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Hanamaru — Family Calendar Agent</title>
+    <style>
+      :root {
+        --bg: #f5f7fa;
+        --surface: #ffffff;
+        --border: #e2e8f0;
+        --text: #1e293b;
+        --muted: #64748b;
+        --accent: #d97757;
+        --accent-soft: #fdf0eb;
+        --auto: #15803d;
+        --auto-soft: #dcfce7;
+        --ask: #b45309;
+        --ask-soft: #fef3c7;
+        --warn: #b91c1c;
+        --warn-soft: #fee2e2;
+        --code-bg: #0f172a;
+        --code-text: #e2e8f0;
+        --radius: 12px;
+        --shadow: 0 1px 3px rgba(15, 23, 42, 0.08), 0 4px 16px rgba(15, 23, 42, 0.04);
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans",
+          "Noto Sans JP", Meiryo, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        line-height: 1.6;
+        -webkit-font-smoothing: antialiased;
+      }
+      .wrap {
+        max-width: 880px;
+        margin: 0 auto;
+        padding: 32px 20px 80px;
+      }
+      header.hero {
+        margin-bottom: 28px;
+      }
+      .logo-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+      .logo {
+        font-size: 28px;
+        line-height: 1;
+      }
+      h1 {
+        font-size: 1.6rem;
+        margin: 0;
+        letter-spacing: -0.01em;
+      }
+      .tag {
+        display: inline-block;
+        font-size: 0.72rem;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+        color: var(--accent);
+        background: var(--accent-soft);
+        border: 1px solid #f3d6c9;
+        border-radius: 999px;
+        padding: 4px 10px;
+      }
+      .lede {
+        color: var(--muted);
+        margin: 12px 0 0;
+        font-size: 0.98rem;
+      }
+      .card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+        padding: 22px;
+      }
+      label {
+        display: block;
+        font-weight: 600;
+        font-size: 0.9rem;
+        margin-bottom: 8px;
+      }
+      .hint {
+        font-weight: 400;
+        color: var(--muted);
+        font-size: 0.82rem;
+      }
+      textarea {
+        width: 100%;
+        min-height: 150px;
+        resize: vertical;
+        padding: 12px 14px;
+        font: inherit;
+        font-size: 0.92rem;
+        color: var(--text);
+        background: #fbfcfe;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        outline: none;
+        transition: border-color 0.15s, box-shadow 0.15s;
+      }
+      textarea:focus,
+      input[type="file"]:focus {
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px var(--accent-soft);
+      }
+      .field {
+        margin-bottom: 18px;
+      }
+      .file-row {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        flex-wrap: wrap;
+      }
+      input[type="file"] {
+        font: inherit;
+        font-size: 0.85rem;
+        padding: 8px;
+        border: 1px dashed var(--border);
+        border-radius: 10px;
+        background: #fbfcfe;
+        cursor: pointer;
+      }
+      #preview {
+        max-height: 96px;
+        max-width: 160px;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        display: none;
+        object-fit: cover;
+      }
+      .actions {
+        margin-top: 22px;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+      }
+      button.submit {
+        appearance: none;
+        border: none;
+        background: var(--accent);
+        color: #fff;
+        font: inherit;
+        font-weight: 600;
+        font-size: 0.95rem;
+        padding: 11px 22px;
+        border-radius: 10px;
+        cursor: pointer;
+        transition: background 0.15s, transform 0.05s;
+      }
+      button.submit:hover {
+        background: #c4633f;
+      }
+      button.submit:active {
+        transform: translateY(1px);
+      }
+      button.submit:disabled {
+        background: #cbd5e1;
+        cursor: not-allowed;
+      }
+      .spinner {
+        width: 16px;
+        height: 16px;
+        border: 2px solid rgba(255, 255, 255, 0.5);
+        border-top-color: #fff;
+        border-radius: 50%;
+        display: inline-block;
+        vertical-align: -3px;
+        margin-right: 8px;
+        animation: spin 0.7s linear infinite;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      #results {
+        margin-top: 28px;
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+      }
+      .section-title {
+        font-size: 1.05rem;
+        font-weight: 700;
+        margin: 0 0 12px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .events-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 12px;
+      }
+      @media (min-width: 620px) {
+        .events-grid {
+          grid-template-columns: 1fr 1fr;
+        }
+      }
+      .event {
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 14px 16px;
+        background: var(--surface);
+      }
+      .event-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 10px;
+      }
+      .event-title {
+        font-weight: 700;
+        font-size: 1rem;
+      }
+      .badge {
+        font-size: 0.7rem;
+        font-weight: 700;
+        padding: 3px 9px;
+        border-radius: 999px;
+        white-space: nowrap;
+      }
+      .badge.auto {
+        color: var(--auto);
+        background: var(--auto-soft);
+      }
+      .badge.ask {
+        color: var(--ask);
+        background: var(--ask-soft);
+      }
+      .event-meta {
+        color: var(--muted);
+        font-size: 0.85rem;
+        margin-top: 6px;
+      }
+      .event-meta .who {
+        font-weight: 600;
+        color: var(--text);
+      }
+      .conf {
+        margin-top: 10px;
+        font-size: 0.72rem;
+        color: var(--muted);
+      }
+      .conf-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 4px;
+      }
+      .conf-row span:first-child {
+        width: 64px;
+        flex: none;
+      }
+      .bar {
+        flex: 1;
+        height: 6px;
+        background: var(--border);
+        border-radius: 999px;
+        overflow: hidden;
+      }
+      .bar > i {
+        display: block;
+        height: 100%;
+        background: var(--accent);
+        border-radius: 999px;
+      }
+      .conflicts .card {
+        border-color: #f5c2c2;
+        background: var(--warn-soft);
+      }
+      .conflict-item {
+        font-size: 0.9rem;
+        padding: 8px 0;
+        border-bottom: 1px solid #f1cccc;
+      }
+      .conflict-item:last-child {
+        border-bottom: none;
+      }
+      .conflict-item strong {
+        color: var(--warn);
+      }
+      details.trace {
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: var(--surface);
+        overflow: hidden;
+      }
+      details.trace > summary {
+        cursor: pointer;
+        padding: 14px 16px;
+        font-weight: 600;
+        font-size: 0.95rem;
+        list-style: none;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        user-select: none;
+      }
+      details.trace > summary::-webkit-details-marker {
+        display: none;
+      }
+      details.trace > summary::before {
+        content: "▶";
+        font-size: 0.7rem;
+        color: var(--muted);
+        transition: transform 0.15s;
+      }
+      details.trace[open] > summary::before {
+        transform: rotate(90deg);
+      }
+      .trace-body {
+        padding: 0 16px 16px;
+      }
+      .mcp-pill {
+        font-size: 0.7rem;
+        font-weight: 700;
+        padding: 2px 8px;
+        border-radius: 999px;
+        margin-left: auto;
+      }
+      .mcp-pill.on {
+        color: #166534;
+        background: var(--auto-soft);
+      }
+      .mcp-pill.off {
+        color: var(--muted);
+        background: #f1f5f9;
+      }
+      .tool-call {
+        margin-bottom: 12px;
+      }
+      .tool-call .tc-name {
+        font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+        font-size: 0.82rem;
+        font-weight: 700;
+        color: var(--accent);
+      }
+      pre {
+        margin: 6px 0 0;
+        background: var(--code-bg);
+        color: var(--code-text);
+        padding: 10px 12px;
+        border-radius: 8px;
+        font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+        font-size: 0.76rem;
+        overflow-x: auto;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+      .summary {
+        font-size: 0.9rem;
+        color: var(--text);
+        background: #f8fafc;
+        border-left: 3px solid var(--accent);
+        padding: 10px 14px;
+        border-radius: 0 8px 8px 0;
+        margin-top: 12px;
+      }
+      .note {
+        color: var(--muted);
+        font-size: 0.85rem;
+        padding: 8px 0;
+      }
+      .error-box {
+        border: 1px solid #f5c2c2;
+        background: var(--warn-soft);
+        color: var(--warn);
+        border-radius: 10px;
+        padding: 14px 16px;
+        font-size: 0.9rem;
+      }
+      .empty {
+        color: var(--muted);
+        font-size: 0.9rem;
+        padding: 16px 0;
+        text-align: center;
+      }
+      .cal-links {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        margin-bottom: 12px;
+      }
+      .cal-link {
+        font-size: 0.88rem;
+        color: var(--auto);
+        background: var(--auto-soft);
+        border-radius: 8px;
+        padding: 8px 12px;
+      }
+      .cal-link a {
+        color: var(--accent);
+        font-weight: 600;
+        text-decoration: none;
+        margin-left: 6px;
+      }
+      .cal-link a:hover {
+        text-decoration: underline;
+      }
+      .cal-frame-wrap {
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        overflow: hidden;
+        background: var(--surface);
+      }
+      .cal-frame-wrap iframe {
+        display: block;
+        width: 100%;
+        height: 400px;
+        border: 0;
+      }
+      .cal-toolbar {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 10px;
+      }
+      button.refresh {
+        appearance: none;
+        border: 1px solid var(--border);
+        background: var(--surface);
+        color: var(--text);
+        font: inherit;
+        font-size: 0.82rem;
+        font-weight: 600;
+        padding: 7px 14px;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: background 0.15s;
+      }
+      button.refresh:hover {
+        background: #f1f5f9;
+      }
+      footer {
+        margin-top: 40px;
+        text-align: center;
+        color: var(--muted);
+        font-size: 0.78rem;
+      }
+      .lang-switch {
+        margin-left: auto;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 0.78rem;
+      }
+      .lang-switch a {
+        color: var(--muted);
+        text-decoration: none;
+        padding: 3px 8px;
+        border-radius: 999px;
+        border: 1px solid transparent;
+      }
+      .lang-switch a:hover {
+        color: var(--accent);
+      }
+      .lang-switch a.active {
+        color: var(--accent);
+        background: var(--accent-soft);
+        border-color: #f3d6c9;
+        font-weight: 700;
+      }
+      .lang-switch .sep {
+        color: var(--border);
+      }
+    </style>
+  </head>
+  <body>
+    <script>
+      window.DEMO_CALENDAR_ID = "__DEMO_CALENDAR_ID__";
+    </script>
+    <div class="wrap">
+      <header class="hero">
+        <div class="logo-row">
+          <span class="logo" aria-hidden="true">🌸</span>
+          <h1>Hanamaru — Family Calendar Agent</h1>
+          <span class="tag">MongoDB track · Google Cloud Rapid Agent</span>
+          <span class="lang-switch" id="langSwitch">
+            <a href="?lang=en" id="langEn">EN</a>
+            <span class="sep">/</span>
+            <a href="?lang=ja" id="langJa">日本語</a>
+          </span>
+        </div>
+        <p class="lede" id="lede"></p>
+      </header>
+
+      <form id="form" class="card">
+        <div class="field">
+          <label for="text">
+            <span id="labelText"></span>
+            <span class="hint" id="hintText"></span>
+          </label>
+          <textarea
+            id="text"
+            name="text"
+          ></textarea>
+        </div>
+
+        <div class="field">
+          <label for="images" id="labelImages"></label>
+          <div class="file-row">
+            <input id="images" name="images" type="file" accept="image/*" />
+            <img id="preview" alt="preview" />
+          </div>
+        </div>
+
+        <div class="actions">
+          <button type="submit" id="submit" class="submit"></button>
+          <span id="status" class="note" role="status" aria-live="polite"></span>
+        </div>
+      </form>
+
+      <div id="results" aria-live="polite"></div>
+
+      <section id="demoCalendar" style="display: none; margin-top: 28px">
+        <h2 class="section-title" id="calSectionTitle"></h2>
+        <div class="cal-toolbar">
+          <button type="button" id="calRefresh" class="refresh"></button>
+          <span class="hint" id="calHint"></span>
+        </div>
+        <div class="cal-links" id="calLinks"></div>
+        <div class="cal-frame-wrap">
+          <iframe id="calFrame" title="Demo Google Calendar" loading="lazy"></iframe>
+        </div>
+      </section>
+
+      <footer id="footer"></footer>
+    </div>
+
+    <script>
+      // ---- i18n ----------------------------------------------------------
+      const I18N = {
+        ja: {
+          ledeDryRun:
+            "学校のおたよりや連絡メッセージ・画像から、Gemini が家族の予定を抽出。MongoDB MCP のエージェントが既存予定と照合してダブルブッキングを検出します（デモはドライラン）。",
+          ledeCalendar:
+            "学校のおたよりや連絡メッセージ・画像から、Gemini が家族の予定を抽出。MongoDB MCP のエージェントが既存予定と照合してダブルブッキングを検出し、自動登録された予定はデモ用 Google カレンダーに反映されます。",
+          labelText: "メッセージ本文",
+          hintText:
+            'prefix で担当を指定可: <code>#長女</code> <code>#長男</code> <code>#?</code>（必ず確認） <code>#!!</code>（自動登録）',
+          textPlaceholder:
+            "例）#長女\n〇〇小学校より：6月20日(金) 14:00〜 授業参観を行います。場所は3年2組教室。上履きをご持参ください。",
+          labelImages: "画像（おたよりの写真など・任意）",
+          submit: "予定を抽出する",
+          submitting: "抽出中…",
+          statusAnalyzing: "Gemini が解析しています…",
+          calSectionTitle: "📆 デモ用 Google カレンダー",
+          calRefresh: "カレンダーを更新",
+          calHint: "自動登録した予定がここに反映されます",
+          footerDryRun:
+            "Hanamaru · ドライランデモ（Google カレンダーへの書き込みは行いません）",
+          footerCalendar:
+            "Hanamaru · 自動登録された予定はデモ用 Google カレンダーに反映されます",
+          memberChild1: "長女",
+          memberChild2: "長男",
+          memberChild3: "末っ子",
+          memberSelf: "自分",
+          memberUnknown: "不明",
+          eventsHeading: function (n) {
+            return "📅 抽出された予定（" + n + "件）";
+          },
+          badgeAuto: "自動登録",
+          badgeAsk: "要確認",
+          confWho: "担当",
+          confWhen: "日時",
+          allDaySuffix: "（終日）",
+          noDate: "(日時なし)",
+          emptyEvents: "予定は抽出されませんでした。",
+          conflictHeading: "⚠️ 予定の重複",
+          conflictLine: function (a, b, when, members) {
+            return (
+              "<strong>" +
+              a +
+              "</strong> が <strong>" +
+              b +
+              "</strong> と重複（" +
+              when +
+              (members ? " · " + members : "") +
+              ")"
+            );
+          },
+          traceHeading: "🍃 MongoDB MCP ツール呼び出しトレース",
+          mcpOn: "MCP 有効",
+          mcpOff: "MCP 無効",
+          mcpDisabledNote:
+            "MongoDB MCP は無効です（ENABLE_MONGO_MCP が未設定）。有効化すると、抽出した予定の永続化と重複検出のツール呼び出しがここに表示されます。",
+          noToolCalls: "ツール呼び出しはありませんでした。",
+          calRegistered: "✅ Google カレンダーに登録: ",
+          calOpen: "開く",
+          inputRequired: "テキストまたは画像のいずれかを入力してください。",
+          errorPrefix: "エラー: ",
+          networkError: "通信エラー: ",
+        },
+        en: {
+          ledeDryRun:
+            "From a school newsletter or message — text or photo — Gemini extracts the family's events. A MongoDB MCP agent checks existing events and detects double-bookings (this demo is a dry run).",
+          ledeCalendar:
+            "From a school newsletter or message — text or photo — Gemini extracts the family's events. A MongoDB MCP agent checks existing events and detects double-bookings.",
+          labelText: "Message text",
+          hintText:
+            'Use a prefix to set the owner: <code>#daughter</code> <code>#son</code> <code>#youngest</code> <code>#me</code> <code>#?</code> (needs confirmation) <code>#!!</code> (auto-register)',
+          textPlaceholder:
+            "e.g.) #daughter\nFrom XX Elementary School: Fri Jun 20, 14:00 — class observation. Location: Room 3-2. Please bring indoor shoes.",
+          labelImages: "Image (newsletter photo, etc. — optional)",
+          submit: "Extract events",
+          submitting: "Extracting…",
+          statusAnalyzing: "Gemini is analyzing…",
+          calSectionTitle: "📆 Demo Google Calendar",
+          calRefresh: "Refresh calendar",
+          calHint: "Auto-registered events appear here.",
+          footerDryRun:
+            "Hanamaru · Dry-run demo (no writes are made to Google Calendar)",
+          footerCalendar:
+            "Hanamaru · Auto-registered events are reflected in the demo Google Calendar.",
+          memberChild1: "Daughter",
+          memberChild2: "Son",
+          memberChild3: "Youngest",
+          memberSelf: "Me",
+          memberUnknown: "Unknown",
+          eventsHeading: function (n) {
+            return "📅 Extracted events (" + n + ")";
+          },
+          badgeAuto: "auto-register",
+          badgeAsk: "needs confirmation",
+          confWho: "Attribution",
+          confWhen: "Date & time",
+          allDaySuffix: " (all day)",
+          noDate: "(no date)",
+          emptyEvents: "No events were extracted.",
+          conflictHeading: "⚠️ Schedule conflict",
+          conflictLine: function (a, b, when, members) {
+            return (
+              "<strong>" +
+              a +
+              "</strong> conflicts with <strong>" +
+              b +
+              "</strong> (" +
+              when +
+              (members ? " · " + members : "") +
+              ")"
+            );
+          },
+          traceHeading: "🍃 MongoDB MCP tool-call trace",
+          mcpOn: "MCP enabled",
+          mcpOff: "MCP disabled",
+          mcpDisabledNote:
+            "MongoDB MCP is disabled (ENABLE_MONGO_MCP is not set). When enabled, the tool calls for persisting extracted events and detecting conflicts will appear here.",
+          noToolCalls: "No tool calls were made.",
+          calRegistered: "✅ Registered to Google Calendar: ",
+          calOpen: "Open",
+          inputRequired: "Please enter either text or an image.",
+          errorPrefix: "Error: ",
+          networkError: "Network error: ",
+        },
+      };
+
+      const STORAGE_KEY = "hanamaru.lang";
+      function detectLang() {
+        const q = new URLSearchParams(location.search).get("lang");
+        if (q === "en" || q === "ja") {
+          try {
+            localStorage.setItem(STORAGE_KEY, q);
+          } catch (_) {}
+          return q;
+        }
+        try {
+          const saved = localStorage.getItem(STORAGE_KEY);
+          if (saved === "en" || saved === "ja") return saved;
+        } catch (_) {}
+        return "ja";
+      }
+      const LANG = detectLang();
+      const DICT = I18N[LANG];
+      function t(key) {
+        const v = DICT[key];
+        if (typeof v === "function") {
+          return v.apply(null, Array.prototype.slice.call(arguments, 1));
+        }
+        return v == null ? key : v;
+      }
+
+      const form = document.getElementById("form");
+      const fileInput = document.getElementById("images");
+      const preview = document.getElementById("preview");
+      const submitBtn = document.getElementById("submit");
+      const statusEl = document.getElementById("status");
+      const results = document.getElementById("results");
+      const demoCalendarSection = document.getElementById("demoCalendar");
+      const calFrame = document.getElementById("calFrame");
+      const calRefreshBtn = document.getElementById("calRefresh");
+      const calLinksEl = document.getElementById("calLinks");
+      const footerEl = document.getElementById("footer");
+
+      const DEMO_CALENDAR_ID =
+        typeof window.DEMO_CALENDAR_ID === "string" ? window.DEMO_CALENDAR_ID.trim() : "";
+      const DEMO_CALENDAR_ENABLED = DEMO_CALENDAR_ID.length > 0;
+
+      function calEmbedSrc() {
+        // Cache-buster so a manual/auto refresh shows newly written events.
+        return (
+          "https://calendar.google.com/calendar/embed?src=" +
+          encodeURIComponent(DEMO_CALENDAR_ID) +
+          "&ctz=Asia%2FTokyo&mode=WEEK&_=" +
+          Date.now()
+        );
+      }
+
+      function refreshCalendar() {
+        if (!DEMO_CALENDAR_ENABLED) return;
+        calFrame.src = calEmbedSrc();
+      }
+
+      // ---- apply static chrome translations ------------------------------
+      document.documentElement.lang = LANG;
+      document.getElementById("labelText").textContent = t("labelText");
+      document.getElementById("hintText").innerHTML = t("hintText");
+      document.getElementById("text").placeholder = t("textPlaceholder");
+      document.getElementById("labelImages").textContent = t("labelImages");
+      submitBtn.textContent = t("submit");
+      document.getElementById("calSectionTitle").textContent = t("calSectionTitle");
+      calRefreshBtn.textContent = t("calRefresh");
+      document.getElementById("calHint").textContent = t("calHint");
+      const ledeEl = document.getElementById("lede");
+      ledeEl.textContent = DEMO_CALENDAR_ENABLED ? t("ledeCalendar") : t("ledeDryRun");
+      footerEl.textContent = DEMO_CALENDAR_ENABLED
+        ? t("footerCalendar")
+        : t("footerDryRun");
+
+      // Language toggle: preserve the rest of the query string, switch ?lang=.
+      (function setupLangSwitch() {
+        function langHref(lang) {
+          const p = new URLSearchParams(location.search);
+          p.set("lang", lang);
+          return location.pathname + "?" + p.toString() + location.hash;
+        }
+        const enEl = document.getElementById("langEn");
+        const jaEl = document.getElementById("langJa");
+        if (enEl) {
+          enEl.href = langHref("en");
+          if (LANG === "en") enEl.classList.add("active");
+        }
+        if (jaEl) {
+          jaEl.href = langHref("ja");
+          if (LANG === "ja") jaEl.classList.add("active");
+        }
+      })();
+
+      if (DEMO_CALENDAR_ENABLED) {
+        demoCalendarSection.style.display = "block";
+        calFrame.src = calEmbedSrc();
+        calRefreshBtn.addEventListener("click", refreshCalendar);
+      }
+
+      const MEMBER_LABELS = {
+        child1: t("memberChild1"),
+        child2: t("memberChild2"),
+        child3: t("memberChild3"),
+        self: t("memberSelf"),
+        unknown: t("memberUnknown"),
+      };
+
+      fileInput.addEventListener("change", () => {
+        const file = fileInput.files && fileInput.files[0];
+        if (file) {
+          preview.src = URL.createObjectURL(file);
+          preview.style.display = "block";
+        } else {
+          preview.style.display = "none";
+        }
+      });
+
+      function esc(s) {
+        return String(s == null ? "" : s)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;");
+      }
+
+      function fmtJst(iso, allDay) {
+        if (!iso) return t("noDate");
+        const d = new Date(iso);
+        if (Number.isNaN(d.getTime())) return String(iso);
+        const opts = allDay
+          ? { year: "numeric", month: "long", day: "numeric", weekday: "short", timeZone: "Asia/Tokyo" }
+          : {
+              year: "numeric",
+              month: "long",
+              day: "numeric",
+              weekday: "short",
+              hour: "2-digit",
+              minute: "2-digit",
+              timeZone: "Asia/Tokyo",
+            };
+        const locale = LANG === "en" ? "en-US" : "ja-JP";
+        return new Intl.DateTimeFormat(locale, opts).format(d);
+      }
+
+      function confBar(label, value) {
+        const pct = Math.round((value || 0) * 100);
+        return (
+          '<div class="conf-row"><span>' +
+          esc(label) +
+          '</span><span class="bar"><i style="width:' +
+          pct +
+          '%"></i></span><span>' +
+          pct +
+          "%</span></div>"
+        );
+      }
+
+      function eventCard(ev) {
+        const isAuto = ev.route === "auto-register";
+        const badge =
+          '<span class="badge ' +
+          (isAuto ? "auto" : "ask") +
+          '">' +
+          (isAuto ? t("badgeAuto") : t("badgeAsk")) +
+          "</span>";
+        const who = MEMBER_LABELS[ev.attributedTo] || ev.attributedTo;
+        const when = fmtJst(ev.startAt, ev.allDay) + (ev.allDay ? t("allDaySuffix") : "");
+        const loc = ev.location ? " · " + esc(ev.location) : "";
+        return (
+          '<div class="event"><div class="event-head"><span class="event-title">' +
+          esc(ev.title) +
+          "</span>" +
+          badge +
+          '</div><div class="event-meta"><span class="who">' +
+          esc(who) +
+          "</span> · " +
+          esc(when) +
+          loc +
+          '</div><div class="conf">' +
+          confBar(t("confWho"), ev.attributionConfidence) +
+          confBar(t("confWhen"), ev.datetimeConfidence) +
+          "</div></div>"
+        );
+      }
+
+      function conflictsSection(conflicts) {
+        if (!conflicts || conflicts.length === 0) return "";
+        const items = conflicts
+          .map(function (c) {
+            const members = (c.members || []).join(", ");
+            return (
+              '<div class="conflict-item">' +
+              t(
+                "conflictLine",
+                esc(c.newEventTitle),
+                esc(c.conflictsWith),
+                esc(fmtJst(c.when)),
+                esc(members)
+              ) +
+              "</div>"
+            );
+          })
+          .join("");
+        return (
+          '<section class="conflicts"><h2 class="section-title">' +
+          esc(t("conflictHeading")) +
+          '</h2><div class="card">' +
+          items +
+          "</div></section>"
+        );
+      }
+
+      function traceSection(data) {
+        const calls = data.toolCalls || [];
+        const pill = data.mcpEnabled
+          ? '<span class="mcp-pill on">' + esc(t("mcpOn")) + "</span>"
+          : '<span class="mcp-pill off">' + esc(t("mcpOff")) + "</span>";
+        let body = "";
+        if (!data.mcpEnabled) {
+          body = '<p class="note">' + esc(t("mcpDisabledNote")) + "</p>";
+        } else if (calls.length === 0) {
+          body = '<p class="note">' + esc(t("noToolCalls")) + "</p>";
+        } else {
+          body = calls
+            .map(function (tc) {
+              return (
+                '<div class="tool-call"><div class="tc-name">' +
+                esc(tc.name) +
+                "()</div><pre>args " +
+                esc(JSON.stringify(tc.args, null, 2)) +
+                "</pre><pre>result " +
+                esc(JSON.stringify(tc.result, null, 2)) +
+                "</pre></div>"
+              );
+            })
+            .join("");
+        }
+        const summary = data.summary
+          ? '<div class="summary">' + esc(data.summary) + "</div>"
+          : "";
+        return (
+          '<details class="trace"' +
+          (data.mcpEnabled && calls.length ? " open" : "") +
+          '><summary>' +
+          esc(t("traceHeading")) +
+          pill +
+          '</summary><div class="trace-body">' +
+          body +
+          summary +
+          "</div></details>"
+        );
+      }
+
+      function renderCalendarResult(data) {
+        if (!DEMO_CALENDAR_ENABLED) return;
+        const links = (data && data.calendarWritten && data.calendarLinks) || [];
+        if (links.length) {
+          calLinksEl.innerHTML = links
+            .map(function (l) {
+              const open = l.htmlLink
+                ? ' <a href="' +
+                  esc(l.htmlLink) +
+                  '" target="_blank" rel="noopener">' +
+                  esc(t("calOpen")) +
+                  "</a>"
+                : "";
+              return (
+                '<span class="cal-link">' +
+                esc(t("calRegistered")) +
+                esc(l.title) +
+                open +
+                "</span>"
+              );
+            })
+            .join("");
+          // Reflect the newly written events in the embedded calendar.
+          refreshCalendar();
+        }
+      }
+
+      function render(data) {
+        renderCalendarResult(data);
+        if (data.error) {
+          results.innerHTML =
+            '<div class="error-box">' + esc(t("errorPrefix")) + esc(data.error) + "</div>";
+          return;
+        }
+        const events = data.events || [];
+        let html = "";
+        if (events.length === 0) {
+          html += '<div class="empty">' + esc(t("emptyEvents")) + "</div>";
+        } else {
+          html +=
+            '<section><h2 class="section-title">' +
+            esc(t("eventsHeading", events.length)) +
+            '</h2><div class="events-grid">' +
+            events.map(eventCard).join("") +
+            "</div></section>";
+        }
+        html += conflictsSection(data.conflicts);
+        html += traceSection(data);
+        results.innerHTML = html;
+      }
+
+      form.addEventListener("submit", async function (e) {
+        e.preventDefault();
+        const text = document.getElementById("text").value;
+        const file = fileInput.files && fileInput.files[0];
+        if (text.trim() === "" && !file) {
+          results.innerHTML =
+            '<div class="error-box">' + esc(t("inputRequired")) + "</div>";
+          return;
+        }
+
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="spinner"></span>' + esc(t("submitting"));
+        statusEl.textContent = t("statusAnalyzing");
+        results.innerHTML = "";
+
+        try {
+          const fd = new FormData();
+          fd.append("text", text);
+          fd.append("lang", LANG);
+          if (file) fd.append("images", file);
+
+          const res = await fetch("/api/extract", { method: "POST", body: fd });
+          const data = await res.json();
+          render(data);
+        } catch (err) {
+          results.innerHTML =
+            '<div class="error-box">' + esc(t("networkError")) + esc(String(err)) + "</div>";
+        } finally {
+          submitBtn.disabled = false;
+          submitBtn.textContent = t("submit");
+          statusEl.textContent = "";
+        }
+      });
+    </script>
+  </body>
+</html>

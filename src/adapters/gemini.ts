@@ -1,13 +1,52 @@
-import { GoogleGenAI, type Schema, Type } from '@google/genai'
+import {
+  type Content,
+  type GenerateContentResponse,
+  GoogleGenAI,
+  type Part,
+  type Schema,
+  Type,
+} from '@google/genai'
 import type { ChildrenMap } from '~/config/children'
 import { type ExtractedEvent, type ExtractionInput, ExtractionResponse } from '~/config/schema'
 import { GeminiExtractionError, SchemaParseError, isRetryable } from '~/lib/errors'
 import { logger } from '~/lib/logger'
 
 const MAX_RETRIES = 3
+const DEFAULT_MAX_STEPS = 8
+
+/** A conversation turn passed to {@link GeminiClient.runWithTools}. Mirrors the SDK's Content. */
+export type GeminiContent = Content
+
+/** A tool the model may call. `parametersJsonSchema` is a JSON Schema object for the args. */
+export type ToolDeclaration = {
+  name: string
+  description: string
+  parametersJsonSchema: unknown
+}
+
+/** A single executed tool call captured during {@link GeminiClient.runWithTools}. */
+export type ToolCallTrace = {
+  name: string
+  args: Record<string, unknown>
+  result: unknown
+}
+
+export type RunWithToolsArgs = {
+  systemInstruction: string
+  contents: GeminiContent[]
+  tools: ToolDeclaration[]
+  dispatch: (name: string, args: Record<string, unknown>) => Promise<unknown>
+  maxSteps?: number
+}
+
+export type RunWithToolsResult = {
+  text: string
+  toolCalls: ToolCallTrace[]
+}
 
 export type GeminiClient = {
   extract(input: ExtractionInput): Promise<{ events: ExtractedEvent[]; summary: string }>
+  runWithTools(args: RunWithToolsArgs): Promise<RunWithToolsResult>
 }
 
 export type GeminiClientConfig = {
@@ -85,6 +124,30 @@ function buildSystemInstruction(postedAt: string, children: ChildrenMap): string
   ].join('\n')
 }
 
+/**
+ * Calls `generateContent` with the existing retry/backoff policy. Shared by
+ * `extract()` and `runWithTools()` so both inherit identical resilience.
+ */
+async function generateWithRetry(
+  ai: GoogleGenAI,
+  request: Parameters<GoogleGenAI['models']['generateContent']>[0],
+  label: string,
+): Promise<GenerateContentResponse> {
+  let lastErr: unknown = null
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    try {
+      return await ai.models.generateContent(request)
+    } catch (err) {
+      lastErr = err
+      if (!isRetryable(err) || attempt === MAX_RETRIES - 1) break
+      const wait = 4 ** attempt * 1000
+      logger.warn(`${label}.retry`, { attempt, waitMs: wait })
+      await new Promise((r) => setTimeout(r, wait))
+    }
+  }
+  throw lastErr instanceof Error ? lastErr : new GeminiExtractionError('Unknown generation failure')
+}
+
 export function createGeminiClient(config: GeminiClientConfig): GeminiClient {
   const ai = new GoogleGenAI({
     vertexai: true,
@@ -104,55 +167,118 @@ export function createGeminiClient(config: GeminiClientConfig): GeminiClient {
 
       const systemInstruction = buildSystemInstruction(input.postedAt, config.children)
 
-      let lastErr: unknown = null
-      for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-        try {
-          const response = await ai.models.generateContent({
+      const response = await generateWithRetry(
+        ai,
+        {
+          model: config.model,
+          contents: [{ role: 'user', parts: parts as Part[] }],
+          config: {
+            systemInstruction,
+            responseMimeType: 'application/json',
+            responseSchema,
+            temperature: 0.2,
+          },
+        },
+        'gemini',
+      )
+
+      const text = response.text
+      if (!text) throw new GeminiExtractionError('Empty response from Gemini')
+
+      let json: unknown
+      try {
+        json = JSON.parse(text)
+      } catch (parseErr) {
+        throw new SchemaParseError(`Gemini returned non-JSON: ${text.slice(0, 200)}`, parseErr)
+      }
+
+      const parsed = ExtractionResponse.safeParse(json)
+      if (!parsed.success) {
+        logger.error('gemini.zodParseFailed', {
+          issues: parsed.error.issues,
+          rawText: text.slice(0, 2000),
+        })
+        throw new SchemaParseError(`Zod parse failed: ${parsed.error.message}`, parsed.error)
+      }
+
+      logger.info('gemini.extracted', { eventCount: parsed.data.events.length })
+      return parsed.data
+    },
+
+    async runWithTools(args: RunWithToolsArgs): Promise<RunWithToolsResult> {
+      const maxSteps = args.maxSteps ?? DEFAULT_MAX_STEPS
+      const toolConfig = [
+        {
+          functionDeclarations: args.tools.map((t) => ({
+            name: t.name,
+            description: t.description,
+            parametersJsonSchema: t.parametersJsonSchema,
+          })),
+        },
+      ]
+
+      const history: Content[] = [...args.contents]
+      const toolCalls: ToolCallTrace[] = []
+
+      for (let step = 0; step < maxSteps; step++) {
+        const response = await generateWithRetry(
+          ai,
+          {
             model: config.model,
-            contents: [{ role: 'user', parts }],
+            contents: history,
             config: {
-              systemInstruction,
-              responseMimeType: 'application/json',
-              responseSchema,
+              systemInstruction: args.systemInstruction,
+              tools: toolConfig,
               temperature: 0.2,
             },
-          })
+          },
+          'gemini.tools',
+        )
 
-          const text = response.text
-          if (!text) throw new GeminiExtractionError('Empty response from Gemini')
-
-          let json: unknown
-          try {
-            json = JSON.parse(text)
-          } catch (parseErr) {
-            throw new SchemaParseError(`Gemini returned non-JSON: ${text.slice(0, 200)}`, parseErr)
-          }
-
-          const parsed = ExtractionResponse.safeParse(json)
-          if (!parsed.success) {
-            logger.error('gemini.zodParseFailed', {
-              issues: parsed.error.issues,
-              rawText: text.slice(0, 2000),
-            })
-            throw new SchemaParseError(`Zod parse failed: ${parsed.error.message}`, parsed.error)
-          }
-
-          logger.info('gemini.extracted', {
-            eventCount: parsed.data.events.length,
-            attempt,
-          })
-          return parsed.data
-        } catch (err) {
-          lastErr = err
-          if (!isRetryable(err) || attempt === MAX_RETRIES - 1) break
-          const wait = 4 ** attempt * 1000
-          logger.warn('gemini.retry', { attempt, waitMs: wait })
-          await new Promise((r) => setTimeout(r, wait))
+        const calls = response.functionCalls ?? []
+        if (calls.length === 0) {
+          return { text: response.text ?? '', toolCalls }
         }
+
+        // Echo the model's function-call turn back into the conversation.
+        history.push({
+          role: 'model',
+          parts: calls.map((c) => ({ functionCall: c })),
+        })
+
+        // Execute every requested tool and append a functionResponse part per call.
+        // A dispatch failure must not abort the loop: log it, record it in the
+        // trace, and feed the error back to the model so it can recover.
+        const responseParts: Part[] = []
+        for (const call of calls) {
+          const name = call.name ?? ''
+          const callArgs = call.args ?? {}
+          try {
+            const result = await args.dispatch(name, callArgs)
+            // MCP tools may return rich/BSON-derived objects; normalize so the
+            // SDK's JSON encoding never chokes on non-serializable values.
+            const safeResult = JSON.parse(JSON.stringify(result ?? null))
+            toolCalls.push({ name, args: callArgs, result: safeResult })
+            responseParts.push({
+              functionResponse: { id: call.id, name, response: { output: safeResult } },
+            })
+          } catch (err) {
+            const message = err instanceof Error ? err.message : String(err)
+            logger.warn('gemini.tools.dispatchFailed', { name, message })
+            toolCalls.push({ name, args: callArgs, result: err })
+            responseParts.push({
+              functionResponse: { id: call.id, name, response: { error: message } },
+            })
+          }
+        }
+        history.push({ role: 'user', parts: responseParts })
+
+        logger.info('gemini.tools.step', { step, calls: calls.length })
       }
-      throw lastErr instanceof Error
-        ? lastErr
-        : new GeminiExtractionError('Unknown extraction failure')
+
+      // maxSteps exhausted while the model still wanted to call tools.
+      logger.warn('gemini.tools.maxStepsReached', { maxSteps, toolCalls: toolCalls.length })
+      return { text: '', toolCalls }
     },
   }
 }

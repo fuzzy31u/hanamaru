@@ -68,4 +68,66 @@ describe('parsePrefix', () => {
     expect(r.modeHint).toBe('force-auto')
     expect(r.prefixHint).toBe('child3')
   })
+
+  it('parses #daughter prefix to child1 and strips the token', () => {
+    const r = parsePrefix('#daughter recital next week')
+    expect(r.prefixHint).toBe('child1')
+    expect(r.modeHint).toBeNull()
+    expect(r.remainingText).toBe('recital next week')
+  })
+
+  it('parses #eldest-daughter prefix to child1', () => {
+    const r = parsePrefix('#eldest-daughter class observation')
+    expect(r.prefixHint).toBe('child1')
+    expect(r.remainingText).toBe('class observation')
+  })
+
+  it('parses #son prefix to child2 and strips the token', () => {
+    const r = parsePrefix('#son soccer practice')
+    expect(r.prefixHint).toBe('child2')
+    expect(r.remainingText).toBe('soccer practice')
+  })
+
+  it('parses #eldest-son prefix to child2', () => {
+    const r = parsePrefix('#eldest-son cram school meeting')
+    expect(r.prefixHint).toBe('child2')
+  })
+
+  it('parses #youngest prefix to child3 and strips the token', () => {
+    const r = parsePrefix('#youngest checkup')
+    expect(r.prefixHint).toBe('child3')
+    expect(r.remainingText).toBe('checkup')
+  })
+
+  it('parses #me prefix to self and strips the token', () => {
+    const r = parsePrefix('#me business trip')
+    expect(r.prefixHint).toBe('self')
+    expect(r.remainingText).toBe('business trip')
+  })
+
+  it('parses #self prefix to self', () => {
+    const r = parsePrefix('#self dentist')
+    expect(r.prefixHint).toBe('self')
+    expect(r.remainingText).toBe('dentist')
+  })
+
+  it('matches English aliases case-insensitively', () => {
+    expect(parsePrefix('#Daughter recital').prefixHint).toBe('child1')
+    expect(parsePrefix('#SON practice').prefixHint).toBe('child2')
+    expect(parsePrefix('#Youngest checkup').prefixHint).toBe('child3')
+    expect(parsePrefix('#ME trip').prefixHint).toBe('self')
+  })
+
+  it('combines English child prefix with mode prefix', () => {
+    const r = parsePrefix('#daughter #? somewhere next week')
+    expect(r.prefixHint).toBe('child1')
+    expect(r.modeHint).toBe('force-ask')
+    expect(r.remainingText).toBe('somewhere next week')
+  })
+
+  it('handles only-prefix English message (no body)', () => {
+    const r = parsePrefix('#son')
+    expect(r.prefixHint).toBe('child2')
+    expect(r.remainingText).toBe('')
+  })
 })

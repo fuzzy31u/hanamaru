@@ -165,6 +165,88 @@ describe('orchestrator', () => {
     expect(d.writer.writeAll).toHaveBeenCalledOnce()
   })
 
+  it('posts a conflict note when the agent reports conflicts', async () => {
+    const d = buildDeps([highConfidenceEvent])
+    const agent = {
+      reviewAndPersist: vi.fn().mockResolvedValue({
+        conflicts: [
+          {
+            newEventTitle: '遠足',
+            conflictsWith: 'ピアノ',
+            when: '2026-06-10T09:00:00+09:00',
+            members: ['末っ子'],
+          },
+        ],
+        toolCalls: [],
+        summary: '重複あり',
+      }),
+    }
+    const orch = createOrchestrator({ ...d, agent })
+    const result = await orch.process(
+      {
+        postedAt: '2026-06-09T20:00:00+09:00',
+        authorUserId: 'U1',
+        channelId: 'C1',
+        threadTs: '0.0',
+        text: 'お便り',
+        prefixHint: null,
+        modeHint: null,
+        images: [],
+      },
+      'evt-conflict',
+    )
+    expect(result.kind).toBe('created')
+    expect(agent.reviewAndPersist).toHaveBeenCalledOnce()
+    // auto-register message + conflict note = 2 thread posts
+    expect(d.slack.postThreadMessage).toHaveBeenCalledTimes(2)
+    const calls = d.slack.postThreadMessage.mock.calls
+    const lastCall = calls[calls.length - 1] as unknown[]
+    expect(lastCall[2]).toContain('スケジュールの重複の可能性')
+  })
+
+  it('does not post an extra message when the agent reports no conflicts', async () => {
+    const d = buildDeps([highConfidenceEvent])
+    const agent = {
+      reviewAndPersist: vi.fn().mockResolvedValue({ conflicts: [], toolCalls: [], summary: 'ok' }),
+    }
+    const orch = createOrchestrator({ ...d, agent })
+    await orch.process(
+      {
+        postedAt: '2026-06-09T20:00:00+09:00',
+        authorUserId: 'U1',
+        channelId: 'C1',
+        threadTs: '0.0',
+        text: 'お便り',
+        prefixHint: null,
+        modeHint: null,
+        images: [],
+      },
+      'evt-noconflict',
+    )
+    expect(agent.reviewAndPersist).toHaveBeenCalledOnce()
+    // only the auto-register message
+    expect(d.slack.postThreadMessage).toHaveBeenCalledTimes(1)
+  })
+
+  it('behaves unchanged with no agent dep (no extra post)', async () => {
+    const d = buildDeps([highConfidenceEvent])
+    const orch = createOrchestrator(d)
+    await orch.process(
+      {
+        postedAt: '2026-06-09T20:00:00+09:00',
+        authorUserId: 'U1',
+        channelId: 'C1',
+        threadTs: '0.0',
+        text: 'お便り',
+        prefixHint: null,
+        modeHint: null,
+        images: [],
+      },
+      'evt-noagent',
+    )
+    expect(d.slack.postThreadMessage).toHaveBeenCalledTimes(1)
+  })
+
   it('returns empty when extractor finds no events', async () => {
     const d = buildDeps([])
     const orch = createOrchestrator(d)

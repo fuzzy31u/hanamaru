@@ -75,6 +75,8 @@ resource "google_secret_manager_secret" "secrets" {
     "google-oauth-client-id",
     "google-oauth-client-secret",
     "google-calendar-refresh-token",
+    # MongoDB Atlas 接続文字列 (MongoDB MCP feature 用)。値は out-of-band で投入する。
+    "mdb-mcp-connection-string",
   ])
   secret_id = each.value
   replication {
@@ -115,6 +117,15 @@ resource "google_cloud_run_v2_service" "hanamaru" {
       env {
         name  = "GEMINI_MODEL"
         value = "gemini-2.5-flash"
+      }
+      # MongoDB MCP feature flag。デフォルト無効。有効化は変数 enable_mongo_mcp を切替える。
+      env {
+        name  = "ENABLE_MONGO_MCP"
+        value = var.enable_mongo_mcp
+      }
+      env {
+        name  = "MONGO_DB_NAME"
+        value = var.mongo_db_name
       }
 
       resources {

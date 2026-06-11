@@ -100,6 +100,52 @@ gcloud run services update-traffic hanamaru --region=asia-northeast1 --to-revisi
 
 `pnpm auth:google` をローカルで再実行 → 新トークンを Secret Manager に追加。
 
+### MongoDB MCP feature (有効化手順)
+
+MongoDB MCP は feature flag (`ENABLE_MONGO_MCP`) で制御される。デフォルトは無効で、無効のままなら接続文字列が未投入でもサービスは起動できる。
+
+関連する env / secret:
+
+- `ENABLE_MONGO_MCP` — plain env var。`true` で有効化（Terraform 変数 `enable_mongo_mcp`、デフォルト `false`）。
+- `MONGO_DB_NAME` — plain env var。未設定なら `hanamaru`（Terraform 変数 `mongo_db_name`、デフォルト `hanamaru`）。
+- `MDB_MCP_CONNECTION_STRING` — Atlas 接続文字列。本番では Secret Manager の `mdb-mcp-connection-string`（secret container は Terraform 管理、値は out-of-band 投入）。
+
+1. **接続文字列を Secret Manager に投入**（他の secret と同じ手順。secret container は `terraform apply` 済みであること）
+
+   ```bash
+   echo -n "mongodb+srv://<user>:<pass>@<cluster>/?retryWrites=true&w=majority" \
+     | gcloud secrets versions add mdb-mcp-connection-string --data-file=-
+   ```
+
+2. **Cloud Run に secret env と feature flag を設定**
+
+   ```bash
+   gcloud run services update hanamaru \
+     --region=asia-northeast1 \
+     --update-secrets=MDB_MCP_CONNECTION_STRING=mdb-mcp-connection-string:latest \
+     --update-env-vars=ENABLE_MONGO_MCP=true,MONGO_DB_NAME=hanamaru
+   ```
+
+   無効化するときは `--update-env-vars=ENABLE_MONGO_MCP=false`。
+
+> Note: Cloud Run の env / secret env は Terraform の `lifecycle.ignore_changes`（`template[0].containers[0].env`）対象であり、実値は上記 gcloud / デプロイワークフローで管理する。Terraform は secret container と IAM（runtime SA への `roles/secretmanager.secretAccessor`、project レベル）のみ管理する。`mongodb-mcp-server` は production 依存に含まれるため、コンテナ内で subprocess として起動できる（ランタイムでの network fetch は不要）。
+
+### Web demo calendar (live demo)
+
+`DEMO_CALENDAR_ID` を設定すると、web デモの `/api/extract` が「自動登録」判定の予定を実際にその Google カレンダーへ書き込み、デモページに当該カレンダーを埋め込んで表示する。未設定ならこれまで通りドライラン（書き込みなし）。
+
+- 公開カレンダーの ID を指定する（埋め込み iframe が公開アクセス前提のため）。
+- カレンダーへの書き込みは `GOOGLE_CALENDAR_REFRESH_TOKEN`（既存の Calendar OAuth）で行うため、対象カレンダーにそのアカウントの書き込み権限が必要。
+- env のみで管理（Terraform 変更不要）。設定例:
+
+  ```bash
+  gcloud run services update hanamaru \
+    --region=asia-northeast1 \
+    --update-env-vars=DEMO_CALENDAR_ID=<id>
+  ```
+
+  無効化（ドライランに戻す）するときは `--update-env-vars=DEMO_CALENDAR_ID=`。
+
 ## E2E manual checklist (before release)
 
 ```text

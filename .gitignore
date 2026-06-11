@@ -20,3 +20,12 @@ coverage/
 
 # Personal local settings
 .claude/settings.local.json
+
+# Hackathon submission notes (kept local, not published to the repo)
+docs/hackathon-submission.md
+
+# Local demo/video work artifacts (Playwright output, captures — not part of the project)
+.playwright-mcp/
+output/
+assets/
+demo-*.png
