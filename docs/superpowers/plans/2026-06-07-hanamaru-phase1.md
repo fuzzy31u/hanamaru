@@ -3994,8 +3994,6 @@ git commit -m "feat(scripts): seed attribution_hints from CHILDREN config contex
 
 AI scheduling agent that watches Slack and writes Google Calendar entries for the family.
 
-Built for the [Rapid Agent Hackathon](https://rapid-agent.devpost.com/).
-
 ## What it does
 
 Post a photo of your kid's school newsletter to a Slack channel. Hanamaru reads it (text + image),

@@ -3,8 +3,6 @@
 - **日付**: 2026-06-06
 - **ステータス**: Draft (ブレスト後、レビュー前)
 - **対象スコープ**: Phase 1 MVP
-- **想定応募先**: [Rapid Agent Hackathon](https://rapid-agent.devpost.com/)
-
 ---
 
 ## 1. 背景と課題
@@ -708,17 +706,7 @@ ngrok http 8080         # webhook URL を取得し Slack App に設定
 
 ---
 
-## 11. ハッカソン応募を見据えた留意点
-
-[Rapid Agent Hackathon](https://rapid-agent.devpost.com/) への応募を視野に：
-
-- **デモ動画用シナリオ**: 1 分以内で「Slack 投稿 → AI 抽出 → カレンダー登録」のループを見せる
-- **README のストーリーテリング**: GCP × Vertex AI 完結、Slack-native UI、Gemini Vision で OCR 不要、を最初の段落で訴求
-- **応募締切の確認**: 別途 Devpost ページで要件・締切を確認すること（本ドキュメント時点では未確認）
-
----
-
-## 12. オープン課題 / 将来検討
+## 11. オープン課題 / 将来検討
 
 - **複数ユーザー対応**: Phase 2 で配偶者招待時の振る舞い設計（信頼度の差異化、属性のデフォルト）
 - **更新検出**: 「保護者会の時間が変わりました」を既存イベントの update として識別する難易度

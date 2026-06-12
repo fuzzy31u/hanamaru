@@ -1,8 +1,8 @@
 # Hanamaru 🌸
 
-AI scheduling agent that watches Slack and writes Google Calendar entries for the family.
+![Hanamaru](assets/thumbnail.png)
 
-Built for the [Rapid Agent Hackathon](https://rapid-agent.devpost.com/).
+AI scheduling agent that watches Slack and writes Google Calendar entries for the family.
 
 ## What it does
 
